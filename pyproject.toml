@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.0",
     "aiosqlite>=0.19",
     "aiohttp>=3.9",
+    "aioimaplib>=1.0",
     "click>=8.1",
 ]
 
