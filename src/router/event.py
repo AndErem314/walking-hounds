@@ -60,6 +60,7 @@ class CancellationIntent(BaseEvent):
     """Client wants to cancel a walk."""
     client_email: str
     client_name: str | None = None
+    dog_name: str | None = None
     booking_ref: str | None = None
     walk_date: str | None = None
     reason: str = ""
@@ -67,9 +68,10 @@ class CancellationIntent(BaseEvent):
 
 
 class RescheduleIntent(BaseEvent):
-    """Client wants to move a walk to a different day/slot."""
+    """Client wants to move a walk to a different day/time."""
     client_email: str
     client_name: str | None = None
+    dog_name: str | None = None
     booking_ref: str | None = None
     original_date: str | None = None
     new_date: str | None = None
