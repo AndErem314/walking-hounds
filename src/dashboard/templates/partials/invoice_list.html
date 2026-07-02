@@ -1,0 +1,33 @@
+{% if pending %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Invoice</th>
+            <th>Client</th>
+            <th>Amount</th>
+            <th>Due Date</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for inv in pending %}
+        <tr id="invoice-{{ inv.id }}">
+            <td class="mono">{{ inv.id[:8] }}…</td>
+            <td>{{ inv.client_name }}</td>
+            <td>€{{ "%.2f"|format(inv.amount_eur) }}</td>
+            <td>{{ inv.due_date }}</td>
+            <td>
+                <button class="btn btn-approve"
+                        hx-post="/invoices/{{ inv.id }}/mark-paid"
+                        hx-target="#invoice-list"
+                        hx-swap="innerHTML">
+                    💶 Mark Paid
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">✅ No pending invoices — all paid up!</div>
+{% endif %}

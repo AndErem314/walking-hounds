@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📅 Schedule — Walking Hounds</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-brand">🐕 Walking Hounds</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">Dashboard</a>
+        <a href="/schedule" class="nav-link active">Schedule</a>
+        <a href="/journal" class="nav-link">Journal</a>
+        <a href="/invoices" class="nav-link">Invoices</a>
+        <a href="/approvals" class="nav-link">Approvals</a>
+        <a href="/agents" class="nav-link">System</a>
+    </div>
+</nav>
+
+<main class="container">
+    <div class="page-header">
+        <h1>📅 Schedule — {{ target_date }}</h1>
+        <div class="date-nav">
+            <a href="/schedule?date={{ prev_date }}" class="btn">← Previous</a>
+            <a href="/schedule" class="btn">Today</a>
+            <a href="/schedule?date={{ next_date }}" class="btn">Next →</a>
+        </div>
+    </div>
+
+    {% if slots %}
+    <div class="schedule-grid">
+        {% for slot, walk_list in slots.items() %}
+        <section class="card slot-card">
+            <h2 class="slot-header">⏰ {{ slot }}</h2>
+            <div class="slot-walks">
+                {% for w in walk_list %}
+                <div class="walk-card {% if w.status == 'cancelled' %}cancelled{% endif %}">
+                    <div class="walk-dog">
+                        <span class="dog-name">{{ w.dog_name }}</span>
+                        {% if w.age_months and w.age_months <= 10 and w.age_months >= 4 %}
+                        <span class="badge badge-puppy">PUPPY</span>
+                        {% endif %}
+                    </div>
+                    <div class="walk-details">
+                        <span class="walk-detail">👤 {{ w.client_name }}</span>
+                        <span class="walk-detail">🧑‍🦱 {{ w.walker_name }}</span>
+                        <span class="walk-detail">🐾 {{ w.breed or "—" }}</span>
+                        {% if w.special_needs %}
+                        <span class="walk-detail warning">⚠️ {{ w.special_needs }}</span>
+                        {% endif %}
+                    </div>
+                    <div class="walk-status">
+                        <span class="badge badge-{{ w.status }}">{{ w.status }}</span>
+                        {% if w.group_type == 'puppy' %}
+                        <span class="badge badge-puppy">PUPPY GROUP</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state large">No walks scheduled for this date 🌤️</div>
+    {% endif %}
+</main>
+
+</body>
+</html>

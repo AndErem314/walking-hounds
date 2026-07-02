@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚙️ System — Walking Hounds</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-brand">🐕 Walking Hounds</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">Dashboard</a>
+        <a href="/schedule" class="nav-link">Schedule</a>
+        <a href="/journal" class="nav-link">Journal</a>
+        <a href="/invoices" class="nav-link">Invoices</a>
+        <a href="/approvals" class="nav-link">Approvals</a>
+        <a href="/agents" class="nav-link active">System</a>
+    </div>
+</nav>
+
+<main class="container">
+    <h1>⚙️ System Health</h1>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-value">{{ journal_count }}</div>
+            <div class="stat-label">Journal Entries</div>
+        </div>
+        <div class="stat-card {% if dlq_count > 0 %}alert{% endif %}">
+            <div class="stat-icon">💀</div>
+            <div class="stat-value">{{ dlq_count }}</div>
+            <div class="stat-label">Dead Letter Queue</div>
+        </div>
+    </div>
+
+    <section class="card">
+        <h2>📦 Event Store</h2>
+        {% if event_stats %}
+        <table class="table">
+            <thead>
+                <tr><th>Status</th><th>Count</th></tr>
+            </thead>
+            <tbody>
+                {% for status, count in event_stats.items() %}
+                <tr>
+                    <td><span class="badge badge-{{ status }}">{{ status }}</span></td>
+                    <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">No events in the store yet</div>
+        {% endif %}
+    </section>
+
+    <section class="card">
+        <h2>🤖 Agent Roster</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Role</th>
+                    <th>Subscribes To</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>IntakeAgent</td>
+                    <td>Polls IMAP, parses emails with LLM, detects intent</td>
+                    <td><code>EmailReceived</code></td>
+                </tr>
+                <tr>
+                    <td>SchedulingAgent</td>
+                    <td>Books walks, assigns walkers, manages groups</td>
+                    <td><code>BookingIntent, CancellationIntent, RescheduleIntent, HumanApproved</code></td>
+                </tr>
+                <tr>
+                    <td>CommunicationAgent</td>
+                    <td>Sends all outbound emails, LLM-drafted responses</td>
+                    <td><code>ScheduleConfirmed, CancellationConfirmed, ClarificationRequest, QueryIntent, ComplaintIntent, ReminderDue, PaymentReminder</code></td>
+                </tr>
+                <tr>
+                    <td>InvoicingAgent</td>
+                    <td>Creates invoices, tracks payments, escalates</td>
+                    <td><code>ScheduleConfirmed, CancellationConfirmed, WalkCompleted, PaymentConfirmed</code></td>
+                </tr>
+                <tr>
+                    <td>ReminderAgent</td>
+                    <td>Time-based triggers: walk reminders, briefings, feedback</td>
+                    <td><em>Timer-driven (no subscriptions)</em></td>
+                </tr>
+                <tr>
+                    <td>LoggerAgent</td>
+                    <td>Records every event to journal — audit trail</td>
+                    <td><code>* (wildcard — all events)</code></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+</main>
+
+</body>
+</html>

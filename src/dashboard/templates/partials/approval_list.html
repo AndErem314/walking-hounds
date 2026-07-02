@@ -1,0 +1,51 @@
+{% if pending %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>Type</th>
+            <th>Context</th>
+            <th>Created</th>
+            <th>Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for g in pending %}
+        <tr class="approval-row" id="gate-{{ g.id }}">
+            <td><span class="badge badge-event">{{ g.gate_type }}</span></td>
+            <td class="approval-context">
+                {% if g.gate_type == 'complaint_response' %}
+                    <strong>{{ g.context.client_name or g.context.client_email }}</strong>: 
+                    <em>"{{ g.context.complaint_text[:80] }}…"</em><br>
+                    <small>Draft: {{ g.context.drafted_response[:100] }}…</small>
+                {% elif g.gate_type == 'payment_escalation' %}
+                    <strong>{{ g.context.client_name }}</strong> — 
+                    €{{ "%.2f"|format(g.context.amount_eur or 0) }} — 
+                    {{ g.context.days_overdue }}d overdue
+                {% elif g.gate_type == 'schedule_conflict' %}
+                    {{ g.context.get('details', 'Schedule conflict') }}
+                {% else %}
+                    {{ g.context | tojson(indent=2) }}
+                {% endif %}
+            </td>
+            <td>{{ g.created_at[:19] }}</td>
+            <td class="approval-actions">
+                <button class="btn btn-approve"
+                        hx-post="/approvals/{{ g.id }}/resolve?decision=approved"
+                        hx-target="#approval-list"
+                        hx-swap="innerHTML">
+                    ✅ Approve
+                </button>
+                <button class="btn btn-reject"
+                        hx-post="/approvals/{{ g.id }}/resolve?decision=rejected"
+                        hx-target="#approval-list"
+                        hx-swap="innerHTML">
+                    ❌ Reject
+                </button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">✅ No pending approvals — all clear!</div>
+{% endif %}

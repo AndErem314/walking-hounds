@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>💰 Invoices — Walking Hounds</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-brand">🐕 Walking Hounds</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">Dashboard</a>
+        <a href="/schedule" class="nav-link">Schedule</a>
+        <a href="/journal" class="nav-link">Journal</a>
+        <a href="/invoices" class="nav-link active">Invoices</a>
+        <a href="/approvals" class="nav-link">Approvals</a>
+        <a href="/agents" class="nav-link">System</a>
+    </div>
+</nav>
+
+<main class="container">
+    <h1>💰 Invoices</h1>
+
+    <section class="card">
+        <h2>⏳ Pending Payment</h2>
+        <div id="invoice-list">
+            {% include "partials/invoice_list.html" %}
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>✅ Paid</h2>
+        {% if paid %}
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Invoice ID</th>
+                    <th>Client</th>
+                    <th>Amount</th>
+                    <th>Paid Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for inv in paid %}
+                <tr>
+                    <td class="mono">{{ inv.id[:8] }}…</td>
+                    <td>{{ inv.client_name }}</td>
+                    <td>€{{ "%.2f"|format(inv.amount_eur) }}</td>
+                    <td>{{ inv.paid_date[:19] if inv.paid_date else "—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">No paid invoices yet</div>
+        {% endif %}
+    </section>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔔 Approvals — Walking Hounds</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-brand">🐕 Walking Hounds</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">Dashboard</a>
+        <a href="/schedule" class="nav-link">Schedule</a>
+        <a href="/journal" class="nav-link">Journal</a>
+        <a href="/invoices" class="nav-link">Invoices</a>
+        <a href="/approvals" class="nav-link active">Approvals</a>
+        <a href="/agents" class="nav-link">System</a>
+    </div>
+</nav>
+
+<main class="container">
+    <h1>🔔 Approval Gates</h1>
+    <p class="subtitle">Items requiring human decision — the system pauses here until you act</p>
+
+    <section class="card">
+        <h2>⏳ Pending</h2>
+        <div id="approval-list">
+            {% include "partials/approval_list.html" %}
+        </div>
+    </section>
+
+    {% if resolved %}
+    <section class="card">
+        <h2>✅ Recently Resolved</h2>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Gate ID</th>
+                    <th>Type</th>
+                    <th>Decision</th>
+                    <th>Resolved At</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for g in resolved %}
+                <tr>
+                    <td class="mono">{{ g.id[:8] }}…</td>
+                    <td><span class="badge badge-event">{{ g.gate_type }}</span></td>
+                    <td>
+                        {% if g.status == 'approved' %}
+                        <span class="badge badge-scheduled">✅ Approved</span>
+                        {% else %}
+                        <span class="badge badge-cancelled">❌ Rejected</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ g.resolved_at[:19] if g.resolved_at else "—" }}</td>
+                    <td>{{ g.resolver_notes or "—" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+    {% endif %}
+</main>
+
+</body>
+</html>

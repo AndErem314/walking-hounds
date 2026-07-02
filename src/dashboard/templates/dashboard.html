@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐕 Walking Hounds — Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-brand">🐕 Walking Hounds</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link active">Dashboard</a>
+        <a href="/schedule" class="nav-link">Schedule</a>
+        <a href="/journal" class="nav-link">Journal</a>
+        <a href="/invoices" class="nav-link">Invoices</a>
+        <a href="/approvals" class="nav-link">Approvals</a>
+        <a href="/agents" class="nav-link">System</a>
+    </div>
+</nav>
+
+<main class="container">
+    <!-- ── Stats Cards ─────────────────────────────────── -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-icon">📅</div>
+            <div class="stat-value">{{ stats.walks_today }}</div>
+            <div class="stat-label">Walks Today</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-value">{{ stats.pending_invoices }}</div>
+            <div class="stat-label">Pending Invoices</div>
+            <div class="stat-sub">€{{ "%.2f"|format(stats.pending_total_eur) }}</div>
+        </div>
+        <div class="stat-card {% if stats.pending_approvals > 0 %}alert{% endif %}">
+            <div class="stat-icon">🔔</div>
+            <div class="stat-value">{{ stats.pending_approvals }}</div>
+            <div class="stat-label">Awaiting Approval</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-value">{{ stats.active_clients }}</div>
+            <div class="stat-label">Active Clients</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🐕</div>
+            <div class="stat-value">{{ stats.total_dogs }}</div>
+            <div class="stat-label">Dogs</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🧑‍🦱</div>
+            <div class="stat-value">{{ stats.active_walkers }}</div>
+            <div class="stat-label">Walkers</div>
+        </div>
+    </div>
+
+    <div class="two-col">
+        <!-- ── Today's Schedule ─────────────────────────── -->
+        <section class="card">
+            <h2>📅 Today's Schedule — {{ today }}</h2>
+            {% if walks %}
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Slot</th>
+                        <th>Dog</th>
+                        <th>Breed</th>
+                        <th>Walker</th>
+                        <th>Group</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for w in walks %}
+                    <tr class="walk-row {% if w.status == 'cancelled' %}cancelled{% endif %}">
+                        <td class="slot-time">{{ w.slot }}</td>
+                        <td class="dog-name">
+                            {{ w.dog_name }}
+                            {% if w.age_months and w.age_months <= 10 and w.age_months >= 4 %}
+                            <span class="badge badge-puppy">PUPPY</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ w.breed or "—" }}</td>
+                        <td>{{ w.walker_name }}</td>
+                        <td>{{ w.group_name or "—" }}</td>
+                        <td>
+                            <span class="badge badge-{{ w.status }}">{{ w.status }}</span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state">No walks scheduled for today 🌤️</div>
+            {% endif %}
+        </section>
+
+        <div class="right-col">
+            <!-- ── Approval Gates ─────────────────────────── -->
+            {% if approvals %}
+            <section class="card alert-card">
+                <h2>🔔 Pending Approvals</h2>
+                <div id="approval-list">
+                    {% include "partials/approval_list.html" %}
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- ── Pending Invoices ──────────────────────── -->
+            {% if invoices %}
+            <section class="card">
+                <h2>💰 Pending Invoices</h2>
+                <div id="invoice-list">
+                    {% include "partials/invoice_list.html" %}
+                </div>
+            </section>
+            {% endif %}
+
+            <!-- ── Recent Activity ───────────────────────── -->
+            <section class="card">
+                <h2>📜 Recent Activity</h2>
+                <div class="journal-feed">
+                    {% for entry in journal %}
+                    <div class="journal-entry">
+                        <span class="journal-time">{{ entry.timestamp[:19] }}</span>
+                        <span class="journal-actor">{{ entry.actor }}</span>
+                        <span class="journal-type">{{ entry.event_type }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                <a href="/journal" class="see-all">View all →</a>
+            </section>
+        </div>
+    </div>
+</main>
+
+<script>
+    // WebSocket for live updates
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+    ws.onopen = () => console.log('WebSocket connected');
+    ws.onmessage = (event) => {
+        const msg = JSON.parse(event.data);
+        if (msg.type === 'approval_resolved' || msg.type === 'invoice_paid') {
+            // Reload the page to reflect changes
+            setTimeout(() => location.reload(), 500);
+        }
+    };
+    ws.onerror = () => console.log('WebSocket error');
+    
+    // Ping every 30s to keep alive
+    setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send('ping');
+    }, 30000);
+</script>
+
+</body>
+</html>

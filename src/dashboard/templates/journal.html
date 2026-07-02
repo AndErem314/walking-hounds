@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📜 Journal — Walking Hounds</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-brand">🐕 Walking Hounds</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">Dashboard</a>
+        <a href="/schedule" class="nav-link">Schedule</a>
+        <a href="/journal" class="nav-link active">Journal</a>
+        <a href="/invoices" class="nav-link">Invoices</a>
+        <a href="/approvals" class="nav-link">Approvals</a>
+        <a href="/agents" class="nav-link">System</a>
+    </div>
+</nav>
+
+<main class="container">
+    <h1>📜 Activity Journal</h1>
+    <p class="subtitle">Full audit trail — every event that flows through the system</p>
+
+    {% if entries %}
+    <table class="table journal-table">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Actor</th>
+                <th>Event Type</th>
+                <th>Related</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for entry in entries %}
+            <tr class="journal-row">
+                <td class="journal-ts">{{ entry.timestamp[:19] }}</td>
+                <td><span class="journal-actor-badge">{{ entry.actor }}</span></td>
+                <td><span class="badge badge-event">{{ entry.event_type }}</span></td>
+                <td>
+                    {% if entry.related_booking_id %}
+                    <span class="mono">{{ entry.related_booking_id[:8] }}</span>
+                    {% elif entry.related_client_id %}
+                    <span class="mono">{{ entry.related_client_id[:20] }}</span>
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+                <td class="journal-details">
+                    {% if entry.details %}
+                    <details>
+                        <summary>View details</summary>
+                        <pre>{{ entry.details | tojson(indent=2) }}</pre>
+                    </details>
+                    {% else %}
+                    —
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state large">No journal entries yet. The system will log here as events flow through.</div>
+    {% endif %}
+</main>
+
+</body>
+</html>
