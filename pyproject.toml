@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "walking-hounds"
+version = "0.1.0"
+description = "Multi-agent async dog-walking business automation"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "aiosqlite>=0.19",
+    "aiohttp>=3.9",
+    "click>=8.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+walking-hounds = "walking_hounds.cli:cli"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
