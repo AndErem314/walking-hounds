@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     # ── Intake ─────────────────────────────────────────────
     imap_poll_interval_sec: int = 60
     intake_confidence_threshold: float = 0.75
+    imap_folder: str = "INBOX"  # Gmail label for plus-alias filtering
 
     # ── Reminders ──────────────────────────────────────────
     reminder_hours_before_walk: int = 2

@@ -156,7 +156,7 @@ class IntakeAgent(BaseAgent):
                     password=self._settings.imap_password,
                 )
                 await imap.connect()
-                emails = await imap.fetch_unseen()
+                emails = await imap.fetch_unseen(folder=self._settings.imap_folder)
                 await imap.disconnect()
 
                 if emails:
