@@ -128,6 +128,38 @@ class LoggerAgent(BaseAgent):
                 related_client,
             ),
         )
+
+        # Persist HumanApprovalRequired events to the approval_gates table
+        # so the dashboard can display them and humans can resolve them.
+        if isinstance(event, HumanApprovalRequired):
+            gate_id = _uuid()
+            await self.db.execute(
+                """INSERT OR IGNORE INTO approval_gates
+                   (id, gate_type, context, options, status, created_at, originating_event_id)
+                   VALUES (?, ?, ?, ?, 'pending', ?, ?)""",
+                (
+                    gate_id,
+                    event.gate_type,
+                    json.dumps(event.context, ensure_ascii=False, default=str),
+                    json.dumps(event.options, ensure_ascii=False, default=str),
+                    _now(),
+                    event.originating_event_id,
+                ),
+            )
+
+        # Update approval_gates when a human resolves a gate
+        if isinstance(event, (HumanApproved, HumanRejected)):
+            decision = "approved" if isinstance(event, HumanApproved) else "rejected"
+            await self.db.execute(
+                """UPDATE approval_gates
+                   SET status = ?, resolved_at = ?, resolution = ?,
+                       resolver_notes = ?
+                   WHERE id = ?""",
+                (decision, _now(), decision,
+                 event.notes if isinstance(event, HumanApproved) else event.reason,
+                 event.gate_id),
+            )
+
         await self.db.commit()
 
     # ── Query helpers for dashboard ─────────────────────────
