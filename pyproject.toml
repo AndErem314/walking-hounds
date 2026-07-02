@@ -13,6 +13,7 @@ dependencies = [
     "aiosqlite>=0.19",
     "aiohttp>=3.9",
     "aioimaplib>=1.0",
+    "aiosmtplib>=3.0",
     "click>=8.1",
 ]
 
