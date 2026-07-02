@@ -86,6 +86,17 @@ class QueryIntent(BaseEvent):
     raw_message: str = ""
 
 
+class ClarificationRequest(BaseEvent):
+    """Email was unclear — missing required fields. Communication Agent
+    should send a polite reply asking for the missing information."""
+    client_email: str
+    client_name: str | None = None
+    intent: str
+    missing_fields: list[str]
+    original_message: str = ""
+    suggested_clarification: str = ""
+
+
 class ComplaintIntent(BaseEvent):
     """Client is unhappy — routes to human gate."""
     client_email: str
@@ -250,6 +261,7 @@ class EventType(str, Enum):
     CANCELLATION_INTENT = "CancellationIntent"
     RESCHEDULE_INTENT = "RescheduleIntent"
     QUERY_INTENT = "QueryIntent"
+    CLARIFICATION_REQUEST = "ClarificationRequest"
     COMPLAINT_INTENT = "ComplaintIntent"
     SCHEDULE_CONFIRMED = "ScheduleConfirmed"
     SCHEDULE_CONFLICT = "ScheduleConflict"
@@ -274,6 +286,7 @@ EVENT_REGISTRY: dict[str, type[BaseEvent]] = {
     EventType.CANCELLATION_INTENT.value: CancellationIntent,
     EventType.RESCHEDULE_INTENT.value: RescheduleIntent,
     EventType.QUERY_INTENT.value: QueryIntent,
+    EventType.CLARIFICATION_REQUEST.value: ClarificationRequest,
     EventType.COMPLAINT_INTENT.value: ComplaintIntent,
     EventType.SCHEDULE_CONFIRMED.value: ScheduleConfirmed,
     EventType.SCHEDULE_CONFLICT.value: ScheduleConflict,

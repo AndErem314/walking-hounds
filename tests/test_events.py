@@ -11,6 +11,7 @@ from src.router.event import (
     BookingIntent,
     CancellationIntent,
     CancellationConfirmed,
+    ClarificationRequest,
     ComplaintIntent,
     ConfirmationSent,
     EmailReceived,
@@ -103,7 +104,6 @@ class TestDeserialize:
             dog_name="Bello",
             walk_date="2025-07-04",
             walk_slot="11:30",
-            confidence=0.95,
             raw_message="Walk Bello Friday 11:30",
         )
         payload = original.model_dump()
@@ -111,7 +111,7 @@ class TestDeserialize:
         assert isinstance(restored, BookingIntent)
         assert restored.client_email == "test@example.com"
         assert restored.dog_name == "Bello"
-        assert restored.confidence == 0.95
+        assert restored.walk_date == "2025-07-04"
 
     def test_deserialize_unknown_type_raises(self):
         with pytest.raises(ValueError, match="Unknown event type"):
@@ -126,6 +126,7 @@ class TestDeserialize:
             CancellationIntent(client_email="a@b.com"),
             RescheduleIntent(client_email="a@b.com"),
             QueryIntent(client_email="a@b.com"),
+            ClarificationRequest(client_email="a@b.com", intent="booking", missing_fields=["dog_name"]),
             ComplaintIntent(client_email="a@b.com"),
             ScheduleConfirmed(booking_id="b1", client_email="a@b.com", client_name="C", dog_name="D", walker_id="w1", walker_name="W", walk_date="2025-07-04", walk_slot="11:30"),
             ScheduleConflict(conflict_details="full"),

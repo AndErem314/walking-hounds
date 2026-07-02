@@ -28,6 +28,7 @@ import aiosqlite
 from ..router.event import (
     BookingIntent,
     CancellationIntent,
+    ClarificationRequest,
     ComplaintIntent,
     HumanApprovalRequired,
     QueryIntent,
@@ -53,18 +54,34 @@ You receive emails from clients and must classify them into one of these intents
 5. complaint — Client is unhappy about something
 6. other — Doesn't fit any category
 
-Extract these fields if present:
+CRITICAL — Extract these fields ONLY if they are concretely present in the email:
 - client_name: The sender's name (first + last)
-- dog_name: The dog's name mentioned
-- walk_date: The requested date (ISO format YYYY-MM-DD, or null if unknown)
-- walk_slot: Preferred time slot if mentioned ("11:30", "12:00", "12:30", or null)
+- dog_name: The dog's name (must be explicitly mentioned, e.g. "Bello", not "my dog")
+- walk_date: A SPECIFIC date. Accept formats:
+    * ISO date: "2025-07-04"
+    * Day of week with context: "this Friday", "next Monday"
+    * Relative days: "tomorrow", "today" (resolve to YYYY-MM-DD based on current date)
+    If the date is vague ("next week", "sometime soon", "maybe next week") → set to null
+- walk_slot: A specific time slot ("11:30", "12:00", "12:30") or null if not mentioned
 - reason: For cancellations/complaints, the stated reason
 - severity: For complaints only — "low", "medium", or "high"
+
+CLARITY ASSESSMENT — set the "clarity" field:
+- "clear": All required fields for this intent are present and specific
+- "needs_clarification": Required fields are missing or vague
+
+Required fields by intent:
+- booking: dog_name AND walk_date must both be present
+- cancellation: dog_name AND (walk_date OR booking_ref) must be present
+- reschedule: dog_name AND new_date must be present
+- query: no required fields (always "clear")
+- complaint: no required fields (always "clear")
 
 Respond as JSON only, no markdown:
 {
   "intent": "booking|cancellation|reschedule|query|complaint|other",
-  "confidence": 0.0-1.0,
+  "clarity": "clear|needs_clarification",
+  "missing_fields": ["field1", "field2"],
   "client_name": "string or null",
   "dog_name": "string or null",
   "walk_date": "YYYY-MM-DD or null",
@@ -98,7 +115,6 @@ class IntakeAgent(BaseAgent):
             model=self._settings.ollama_model,
         )
         self._poll_interval = self._settings.imap_poll_interval_sec
-        self._confidence_threshold = self._settings.intake_confidence_threshold
         self._poll_task: asyncio.Task | None = None
 
     def subscribed_event_types(self) -> list[str]:
@@ -179,7 +195,8 @@ class IntakeAgent(BaseAgent):
 
         # 3. Extract common fields
         intent = parsed.get("intent", "other")
-        confidence = float(parsed.get("confidence", 0.0))
+        clarity = parsed.get("clarity", "needs_clarification")
+        missing_fields = parsed.get("missing_fields", [])
         client_name = parsed.get("client_name")
         dog_name = parsed.get("dog_name")
         walk_date = parsed.get("walk_date")
@@ -189,26 +206,26 @@ class IntakeAgent(BaseAgent):
         raw_message = f"From: {from_email}\nSubject: {subject}\n\n{body}"
 
         logger.info(
-            "IntakeAgent: intent=%s confidence=%.2f from=%s dog=%s",
-            intent, confidence, from_email, dog_name,
+            "IntakeAgent: intent=%s clarity=%s from=%s dog=%s",
+            intent, clarity, from_email, dog_name,
         )
 
-        # 4. Check confidence threshold
-        if confidence < self._confidence_threshold:
+        # 4. Check clarity — if fields are missing/vague, request clarification
+        if clarity == "needs_clarification" and missing_fields:
             await self.emit(
-                HumanApprovalRequired(
-                    gate_type="ambiguous_intent",
-                    context={
-                        "from_email": from_email,
-                        "subject": subject,
-                        "body_preview": body[:500],
-                        "llm_parse": parsed,
-                        "message_id": message_id,
-                    },
-                    options=["booking", "cancellation", "reschedule", "query", "complaint", "discard"],
+                ClarificationRequest(
+                    client_email=from_email,
+                    client_name=client_name,
+                    intent=intent,
+                    missing_fields=missing_fields,
+                    original_message=raw_message,
+                    suggested_clarification=self._build_clarification_text(intent, missing_fields),
                 )
             )
-            logger.info("IntakeAgent: low confidence (%.2f < %.2f) → human gate", confidence, self._confidence_threshold)
+            logger.info(
+                "IntakeAgent: unclear email (missing %s) → clarification request",
+                missing_fields,
+            )
             return
 
         # 5. Check if client is known
@@ -245,7 +262,6 @@ class IntakeAgent(BaseAgent):
             reason=reason,
             severity=severity,
             raw_message=raw_message,
-            confidence=confidence,
         )
 
     async def _emit_intent(
@@ -260,7 +276,6 @@ class IntakeAgent(BaseAgent):
         reason: str,
         severity: str,
         raw_message: str,
-        confidence: float,
     ) -> None:
         """Emit the appropriate typed event based on classified intent."""
         common = {
@@ -275,7 +290,6 @@ class IntakeAgent(BaseAgent):
                 dog_name=dog_name,
                 walk_date=walk_date,
                 walk_slot=walk_slot,
-                confidence=confidence,
             ))
         elif intent == "cancellation":
             await self.emit(CancellationIntent(
@@ -313,6 +327,23 @@ class IntakeAgent(BaseAgent):
             ))
 
     # ── LLM Parsing ─────────────────────────────────────────
+
+    @staticmethod
+    def _build_clarification_text(intent: str, missing_fields: list[str]) -> str:
+        """Build a polite clarification email body for the missing fields."""
+        field_descriptions = {
+            "dog_name": "your dog's name",
+            "walk_date": "the specific date you'd like the walk (e.g. this Friday, 2025-07-04)",
+            "new_date": "the new date you'd like to move the walk to",
+            "booking_ref": "your booking reference or the original walk date",
+        }
+        missing_text = ", ".join(
+            field_descriptions.get(f, f) for f in missing_fields
+        )
+        return (
+            f"Thank you for your email! "
+            f"To process your {intent} request, could you please clarify: {missing_text}?"
+        )
 
     async def _parse_email(self, from_email: str, subject: str, body: str) -> dict:
         """Send email to Ollama and parse the structured JSON response."""
