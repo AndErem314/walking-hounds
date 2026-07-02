@@ -1,4 +1,4 @@
-"""Async event bus — pub/sub with backpressure, durability, and retry.
+"""Async event router — pub/sub with backpressure, durability, and retry.
 
 Core design:
 - publish() persists to SQLite, then enqueues to subscriber queues.
@@ -27,7 +27,7 @@ Handler = Callable[[BaseEvent], Awaitable[None]]
 WILDCARD = "*"
 
 
-class EventBus:
+class EventRouter:
     """In-memory async pub/sub backed by SQLite durability."""
 
     def __init__(
@@ -74,7 +74,7 @@ class EventBus:
     ) -> None:
         task = asyncio.create_task(
             self._worker(event_type, queue, handler, name),
-            name=f"bus-{event_type}-{name}",
+            name=f"router-{event_type}-{name}",
         )
         self._tasks.append(task)
 

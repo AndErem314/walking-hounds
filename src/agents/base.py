@@ -2,7 +2,7 @@
 
 Every agent in Walking Hounds inherits from BaseAgent.  The agent runs as
 an asyncio task with a bounded queue.  It subscribes to specific event
-types on the bus and emits events via the bus.
+types on the router and emits events via the router.
 """
 
 from __future__ import annotations
@@ -13,8 +13,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any
 
-from ..bus.bus import EventBus
-from ..bus.event import BaseEvent
+from ..router.router import EventRouter
+from ..router.event import BaseEvent
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +55,8 @@ class BaseAgent(ABC):
 
     name: str = "BaseAgent"
 
-    def __init__(self, bus: EventBus):
-        self._bus = bus
+    def __init__(self, router: EventRouter):
+        self._router = router
         self._health = AgentHealth(self.name)
         self._inbox: asyncio.Queue[BaseEvent | None] = asyncio.Queue(maxsize=200)
         self._task: asyncio.Task | None = None
@@ -85,12 +85,12 @@ class BaseAgent(ABC):
     # ── Lifecycle ───────────────────────────────────────────
 
     async def start(self) -> None:
-        """Register subscriptions on the bus and start the main loop."""
+        """Register subscriptions on the router and start the main loop."""
         self._health.status = "starting"
         logger.info("Agent %s starting...", self.name)
 
         for event_type in self.subscribed_event_types():
-            self._bus.subscribe(
+            self._router.subscribe(
                 event_type,
                 self._enqueue,
                 subscriber_name=self.name,
@@ -104,7 +104,7 @@ class BaseAgent(ABC):
         logger.info("Agent %s running", self.name)
 
     async def _enqueue(self, event: BaseEvent) -> None:
-        """Called by the bus — just put the event in our inbox."""
+        """Called by the router — just put the event in our inbox."""
         await self._inbox.put(event)
 
     async def _run(self) -> None:
@@ -126,7 +126,7 @@ class BaseAgent(ABC):
                     "Agent %s failed handling %s: %s",
                     self.name, type(event).__name__, exc,
                 )
-                # Don't re-raise — let the bus worker handle retry/DLQ
+                # Don't re-raise — let the router worker handle retry/DLQ
             finally:
                 self._inbox.task_done()
 
@@ -157,13 +157,13 @@ class BaseAgent(ABC):
     # ── Helpers ─────────────────────────────────────────────
 
     async def emit(self, event: BaseEvent) -> None:
-        """Publish an event on the bus."""
-        await self._bus.publish(event)
+        """Publish an event on the router."""
+        await self._router.publish(event)
 
     @property
     def health(self) -> AgentHealth:
         return self._health
 
     @property
-    def bus(self) -> EventBus:
-        return self._bus
+    def router(self) -> EventRouter:
+        return self._router

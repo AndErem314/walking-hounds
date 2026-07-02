@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS dlq (
 
 
 class EventStore:
-    """Durable SQLite store for the event bus."""
+    """Durable SQLite store for the event router."""
 
     def __init__(self, db_path: str):
         self._db_path = db_path

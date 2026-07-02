@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.bus.event import (
+from src.router.event import (
     BaseEvent,
     BookingIntent,
     CancellationIntent,

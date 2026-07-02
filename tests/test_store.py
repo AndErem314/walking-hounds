@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 
 import pytest
 
-from src.bus.event import BookingIntent, EmailReceived, event_type_name
-from src.bus.store import EventStore
+from src.router.event import BookingIntent, EmailReceived, event_type_name
+from src.router.store import EventStore
 
 
 @pytest.fixture

@@ -1,7 +1,7 @@
 """Walking Hounds — CLI (Click).
 
 Commands:
-  walking-hounds start       Start the full system (bus + all agents)
+  walking-hounds start       Start the full system (router + all agents)
   walking-hounds init-db     Create database tables
   walking-hounds status      Show event store stats and agent health
   walking-hounds dlq         Show dead-letter queue items
@@ -36,7 +36,7 @@ def start() -> None:
 def init_db() -> None:
     """Create database tables."""
     from .db.database import init_database, close_database
-    from .bus.store import EventStore
+    from .router.store import EventStore
 
     settings = get_settings()
 
@@ -55,7 +55,7 @@ def init_db() -> None:
 @cli.command()
 def status() -> None:
     """Show event store statistics."""
-    from .bus.store import EventStore
+    from .router.store import EventStore
 
     settings = get_settings()
 
@@ -78,7 +78,7 @@ def status() -> None:
 @cli.command()
 def dlq() -> None:
     """Show dead-letter queue items."""
-    from .bus.store import EventStore
+    from .router.store import EventStore
 
     settings = get_settings()
 

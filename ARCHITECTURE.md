@@ -167,11 +167,11 @@ All events are typed Pydantic models flowing through the async bus.
 
 ## 4. Async Protocol Design
 
-### Event Bus Architecture
+### Event Router Architecture
 
 ```
                     ┌──────────────────────────┐
-                    │    EventBus (asyncio)     │
+                    │    EventRouter (asyncio)     │
                     │                          │
                     │  ┌────────────────────┐  │
                     │  │  In-Memory Queue   │  │  ← Fast path: asyncio.Queue per subscriber
@@ -296,12 +296,12 @@ walking-hounds/
 │   └── api-reference.md       ← REST API docs (auto-generated)
 ├── src/
 │   ├── __init__.py
-│   ├── main.py                ← entry point: starts event bus + all agents
+│   ├── main.py                ← entry point: starts event router + all agents
 │   ├── config.py              ← pydantic-settings, .env loading
 │   ├── bus/
 │   │   ├── __init__.py
 │   │   ├── event.py           ← BaseEvent + all event type definitions (Pydantic)
-│   │   ├── bus.py             ← EventBus (publish, subscribe, replay, DLQ)
+│   │   ├── bus.py             ← EventRouter (publish, subscribe, replay, DLQ)
 │   │   └── store.py           ← SQLite event store (durability)
 │   ├── agents/
 │   │   ├── __init__.py
@@ -351,9 +351,9 @@ walking-hounds/
 
 ## 8. Implementation Phases
 
-### Phase 1: Foundation (async event bus + data model)
+### Phase 1: Foundation (async event router + data model)
 - Pydantic event types (all events from catalog above)
-- EventBus with SQLite-backed durability
+- EventRouter with SQLite-backed durability
 - BaseAgent abstract class with async lifecycle
 - SQLite schema creation (all tables)
 - Config system (.env, pydantic-settings)

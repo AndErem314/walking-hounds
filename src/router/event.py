@@ -1,4 +1,4 @@
-"""All typed events for the Walking Hounds event bus.
+"""All typed events for the Walking Hounds event router.
 
 Every event is a frozen Pydantic model.  Events are the *only* way
 agents communicate — no direct calls between agents.
@@ -244,7 +244,7 @@ class JournalEntry(BaseEvent):
 # ── Registry ───────────────────────────────────────────────
 
 class EventType(str, Enum):
-    """String enum for event type names — used by the bus for routing."""
+    """String enum for event type names — used by the router for routing."""
     EMAIL_RECEIVED = "EmailReceived"
     BOOKING_INTENT = "BookingIntent"
     CANCELLATION_INTENT = "CancellationIntent"

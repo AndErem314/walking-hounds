@@ -7,9 +7,9 @@ import asyncio
 import pytest
 
 from src.agents.base import BaseAgent
-from src.bus.bus import EventBus
-from src.bus.event import BookingIntent, ConfirmationSent, BaseEvent
-from src.bus.store import EventStore
+from src.router.router import EventRouter
+from src.router.event import BookingIntent, ConfirmationSent, BaseEvent
+from src.router.store import EventStore
 
 
 # ── Test agent implementations ─────────────────────────────
@@ -18,8 +18,8 @@ class SimpleAgent(BaseAgent):
     """Records all events it receives."""
     name = "SimpleAgent"
 
-    def __init__(self, bus):
-        super().__init__(bus)
+    def __init__(self, router):
+        super().__init__(router)
         self.received: list[BaseEvent] = []
 
     def subscribed_event_types(self) -> list[str]:
@@ -33,8 +33,8 @@ class WildcardAgent(BaseAgent):
     """Subscribes to all events."""
     name = "WildcardAgent"
 
-    def __init__(self, bus):
-        super().__init__(bus)
+    def __init__(self, router):
+        super().__init__(router)
         self.received: list[BaseEvent] = []
 
     def subscribed_event_types(self) -> list[str]:
@@ -59,8 +59,8 @@ class ConfirmationReceiver(BaseAgent):
     """Receives ConfirmationSent events."""
     name = "ConfirmationReceiver"
 
-    def __init__(self, bus):
-        super().__init__(bus)
+    def __init__(self, router):
+        super().__init__(router)
         self.received: list[BaseEvent] = []
 
     def subscribed_event_types(self) -> list[str]:
@@ -74,8 +74,8 @@ class EmittingAgent(BaseAgent):
     """Emits a new event when it receives one."""
     name = "EmittingAgent"
 
-    def __init__(self, bus):
-        super().__init__(bus)
+    def __init__(self, router):
+        super().__init__(router)
         self.emit_count = 0
 
     def subscribed_event_types(self) -> list[str]:
@@ -96,10 +96,10 @@ class EmittingAgent(BaseAgent):
 # ── Fixtures ───────────────────────────────────────────────
 
 @pytest.fixture
-async def bus(tmp_db_path):
+async def router(tmp_db_path):
     store = EventStore(tmp_db_path)
     await store.init()
-    b = EventBus(store)
+    b = EventRouter(store)
     await b.start()
     yield b
     await b.stop()
@@ -109,19 +109,19 @@ async def bus(tmp_db_path):
 # ── Tests ──────────────────────────────────────────────────
 
 class TestBaseAgentLifecycle:
-    async def test_agent_start_stop(self, bus):
-        agent = SimpleAgent(bus)
+    async def test_agent_start_stop(self, router):
+        agent = SimpleAgent(router)
         await agent.start()
         assert agent.health.status == "running"
         await agent.stop()
         assert agent.health.status == "stopped"
 
-    async def test_agent_receives_subscribed_event(self, bus):
-        agent = SimpleAgent(bus)
+    async def test_agent_receives_subscribed_event(self, router):
+        agent = SimpleAgent(router)
         await agent.start()
 
         ev = BookingIntent(client_email="test@example.com")
-        await bus.publish(ev)
+        await router.publish(ev)
         await asyncio.sleep(0.2)
 
         assert len(agent.received) == 1
@@ -129,23 +129,23 @@ class TestBaseAgentLifecycle:
 
         await agent.stop()
 
-    async def test_agent_ignores_unsubscribed_event(self, bus):
-        agent = SimpleAgent(bus)
+    async def test_agent_ignores_unsubscribed_event(self, router):
+        agent = SimpleAgent(router)
         await agent.start()
 
         ev = ConfirmationSent(to_email="a@b.com", subject="s", body="b")
-        await bus.publish(ev)
+        await router.publish(ev)
         await asyncio.sleep(0.2)
 
         assert len(agent.received) == 0
         await agent.stop()
 
-    async def test_wildcard_agent_receives_all(self, bus):
-        agent = WildcardAgent(bus)
+    async def test_wildcard_agent_receives_all(self, router):
+        agent = WildcardAgent(router)
         await agent.start()
 
-        await bus.publish(BookingIntent(client_email="a@b.com"))
-        await bus.publish(ConfirmationSent(to_email="a@b.com", subject="s", body="b"))
+        await router.publish(BookingIntent(client_email="a@b.com"))
+        await router.publish(ConfirmationSent(to_email="a@b.com", subject="s", body="b"))
         await asyncio.sleep(0.2)
 
         assert len(agent.received) == 2
@@ -153,29 +153,29 @@ class TestBaseAgentLifecycle:
 
 
 class TestBaseAgentHealth:
-    async def test_health_increments_processed_count(self, bus):
-        agent = SimpleAgent(bus)
+    async def test_health_increments_processed_count(self, router):
+        agent = SimpleAgent(router)
         await agent.start()
 
-        await bus.publish(BookingIntent(client_email="a@b.com"))
+        await router.publish(BookingIntent(client_email="a@b.com"))
         await asyncio.sleep(0.2)
 
         assert agent.health.processed_count == 1
         await agent.stop()
 
-    async def test_health_records_errors(self, bus):
-        agent = FailingAgent(bus)
+    async def test_health_records_errors(self, router):
+        agent = FailingAgent(router)
         await agent.start()
 
-        await bus.publish(BookingIntent(client_email="a@b.com"))
+        await router.publish(BookingIntent(client_email="a@b.com"))
         await asyncio.sleep(1.0)  # wait for retries
 
         assert agent.health.error_count > 0
         assert "Agent failure for test" in agent.health.last_error
         await agent.stop()
 
-    async def test_health_to_dict(self, bus):
-        agent = SimpleAgent(bus)
+    async def test_health_to_dict(self, router):
+        agent = SimpleAgent(router)
         await agent.start()
 
         d = agent.health.to_dict()
@@ -188,14 +188,14 @@ class TestBaseAgentHealth:
 
 
 class TestBaseAgentEmit:
-    async def test_agent_emits_event(self, bus):
-        emitter = EmittingAgent(bus)
-        receiver = ConfirmationReceiver(bus)
+    async def test_agent_emits_event(self, router):
+        emitter = EmittingAgent(router)
+        receiver = ConfirmationReceiver(router)
 
         await emitter.start()
         await receiver.start()
 
-        await bus.publish(BookingIntent(client_email="a@b.com"))
+        await router.publish(BookingIntent(client_email="a@b.com"))
         await asyncio.sleep(0.3)
 
         assert emitter.emit_count == 1
@@ -207,7 +207,7 @@ class TestBaseAgentEmit:
 
 
 class TestBaseAgentOnStartOnStop:
-    async def test_on_start_called(self, bus):
+    async def test_on_start_called(self, router):
         called = []
 
         class HookAgent(BaseAgent):
@@ -225,7 +225,7 @@ class TestBaseAgentOnStartOnStop:
             async def on_stop(self):
                 called.append("stop")
 
-        agent = HookAgent(bus)
+        agent = HookAgent(router)
         await agent.start()
         await agent.stop()
 
