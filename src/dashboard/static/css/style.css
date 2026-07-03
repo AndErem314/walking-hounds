@@ -500,3 +500,149 @@ h2 {
     display: block;
     margin-top: 4px;
 }
+
+/* ── Week Schedule Grid ─────────────────────────────────── */
+
+.week-grid-wrapper {
+    overflow-x: auto;
+}
+
+.week-grid {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.week-grid th {
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    border-bottom: 2px solid var(--border);
+    background: var(--bg-card);
+    position: sticky;
+    top: 0;
+}
+
+.week-grid th.slot-col {
+    width: 80px;
+    text-align: left;
+    padding-left: 12px;
+}
+
+.week-grid th.today-col {
+    background: var(--accent-dim);
+    color: white;
+}
+
+.day-label {
+    font-weight: 700;
+    font-size: 12px;
+}
+
+.day-date {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: monospace;
+    margin-top: 2px;
+}
+
+.week-grid th.today-col .day-date {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.week-grid td {
+    padding: 8px;
+    border: 1px solid var(--border);
+    vertical-align: top;
+    min-height: 80px;
+    background: var(--bg-card);
+}
+
+.week-grid td.today-cell {
+    background: rgba(108, 138, 255, 0.08);
+    border-color: var(--accent-dim);
+}
+
+.slot-cell {
+    font-weight: 700;
+    color: var(--accent);
+    padding: 10px 12px !important;
+    font-size: 13px;
+    white-space: nowrap;
+    text-align: left !important;
+}
+
+.cell {
+    font-size: 12px;
+}
+
+.cell-empty {
+    color: var(--text-dim);
+    text-align: center;
+    font-style: italic;
+    padding: 16px 0;
+}
+
+.cell-walk {
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.cell-walk:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.cell-walk.cancelled {
+    opacity: 0.4;
+    text-decoration: line-through;
+}
+
+.cell-dog {
+    font-weight: 600;
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.cell-meta {
+    font-size: 10px;
+    color: var(--text-dim);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.cell-client {
+    color: var(--text);
+}
+
+.cell-walker {
+    color: var(--text-dim);
+}
+
+.cell-needs {
+    font-size: 10px;
+    color: var(--yellow);
+    margin-top: 2px;
+}
+
+.badge-heat {
+    background: var(--red);
+    color: white;
+    font-size: 10px;
+    padding: 1px 4px;
+}
+
+.badge-intact {
+    background: var(--orange);
+    color: #0f1117;
+    font-size: 10px;
+    padding: 1px 4px;
+}

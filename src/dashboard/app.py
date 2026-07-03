@@ -117,28 +117,57 @@ def create_dashboard_app(
 
     @app.get("/schedule", response_class=HTMLResponse)
     async def schedule_view(request: Request, date: str | None = None):
+        from datetime import timedelta
+
         db = router.store.db
         target_date = date or datetime.now(timezone.utc).date().isoformat()
-        walks = await _get_walks_for_date(db, target_date)
 
-        # Calculate prev/next dates for navigation
-        from datetime import timedelta
+        # Compute the Monday of the week containing target_date
         target_dt = datetime.fromisoformat(target_date)
-        prev_date = (target_dt - timedelta(days=1)).date().isoformat()
-        next_date = (target_dt + timedelta(days=1)).date().isoformat()
+        monday = target_dt - timedelta(days=target_dt.weekday())  # weekday() → Mon=0
 
-        # Group by slot
-        slots: dict[str, list[dict]] = {}
-        for w in walks:
-            slots.setdefault(w["slot"], []).append(w)
+        # Week boundaries: Monday through Friday
+        week_days: list[str] = []
+        weekday_labels = ["Mon", "Tue", "Wed", "Thu", "Fri"]
+        for i in range(5):
+            d = monday + timedelta(days=i)
+            week_days.append(d.date().isoformat())
+
+        # Fetch all walks for the week
+        week_walks = await _get_walks_for_week(db, week_days[0], week_days[-1])
+
+        # Build the grid: slot × day → list of walks
+        slots = settings.walk_slot_list
+        grid: dict[str, dict[str, list[dict]]] = {}
+        for slot in slots:
+            grid[slot] = {day: [] for day in week_days}
+        for w in week_walks:
+            slot = w.get("slot", "")
+            day = w.get("date", "")
+            if slot in grid and day in grid[slot]:
+                grid[slot][day].append(w)
+            else:
+                # Fallback: walks outside defined slots appear under their slot
+                if slot:
+                    grid.setdefault(slot, {day: [] for day in week_days})
+                    if day in grid[slot]:
+                        grid[slot][day].append(w)
+
+        # Navigation: prev/next week
+        prev_monday = (monday - timedelta(days=7)).date().isoformat()
+        next_monday = (monday + timedelta(days=7)).date().isoformat()
+        today = datetime.now(timezone.utc).date().isoformat()
 
         return templates.TemplateResponse(request=request, name="schedule.html", context={
             "request": request,
             "target_date": target_date,
-            "prev_date": prev_date,
-            "next_date": next_date,
+            "prev_date": prev_monday,
+            "next_date": next_monday,
+            "today": today,
+            "week_days": week_days,
+            "weekday_labels": weekday_labels,
             "slots": slots,
-            "walk_slot_list": settings.walk_slot_list,
+            "grid": grid,
         })
 
     @app.get("/journal", response_class=HTMLResponse)
@@ -352,6 +381,26 @@ async def _get_walks_for_date(db: aiosqlite.Connection, date_str: str) -> list[d
            WHERE w.date = ?
            ORDER BY w.slot, w.created_at""",
         (date_str,),
+    )
+    return [dict(r) for r in rows]
+
+
+async def _get_walks_for_week(db: aiosqlite.Connection, monday: str, friday: str) -> list[dict]:
+    """Fetch all scheduled walks for a week (Mon–Fri)."""
+    rows = await db.execute_fetchall(
+        """SELECT w.*, c.name as client_name, c.email as client_email,
+                  d.name as dog_name, d.breed, d.age_months, d.temperament,
+                  d.sex, d.castrated, d.in_heat, d.special_needs,
+                  wl.name as walker_name,
+                  g.name as group_name, g.group_type
+           FROM walks w
+           JOIN clients c ON w.client_id = c.id
+           JOIN dogs d ON w.dog_id = d.id
+           JOIN walkers wl ON w.walker_id = wl.id
+           LEFT JOIN walk_groups g ON w.group_id = g.id
+           WHERE w.date >= ? AND w.date <= ? AND w.status = 'scheduled'
+           ORDER BY w.date, w.slot, w.created_at""",
+        (monday, friday),
     )
     return [dict(r) for r in rows]
 
