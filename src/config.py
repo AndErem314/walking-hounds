@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     imap_poll_interval_sec: int = 60
     intake_confidence_threshold: float = 0.75
     imap_folder: str = "INBOX"  # Gmail label for plus-alias filtering
+    intake_demo_mode: bool = False  # When True, match clients by name from body not email
 
     # ── Reminders ──────────────────────────────────────────
     reminder_hours_before_walk: int = 2

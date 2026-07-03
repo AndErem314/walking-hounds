@@ -23,6 +23,17 @@
                     {{ g.context.days_overdue }}d overdue
                 {% elif g.gate_type == 'schedule_conflict' %}
                     {{ g.context.get('details', 'Schedule conflict') }}
+                {% elif g.gate_type == 'new_client' %}
+                    <strong>📧 {{ g.context.from_email }}</strong><br>
+                    <small>Intent: {{ g.context.intent }}</small><br>
+                    {% if g.context.dog_name %}🐕 <strong>{{ g.context.dog_name }}</strong>{% endif %}
+                    {% if g.context.walk_date %} · {{ g.context.walk_date }}{% endif %}
+                    {% if g.context.walk_slot %} · {{ g.context.walk_slot }}{% endif %}
+                    <br><small style="color:#888">"{{ g.context.body_preview[:120] }}…"</small>
+                {% elif g.gate_type == 'unusual_request' %}
+                    <strong>📧 {{ g.context.from_email }}</strong><br>
+                    <small>Intent: {{ g.context.intent }}</small><br>
+                    <small style="color:#888">"{{ g.context.raw_message[:120] if g.context.raw_message else g.context.body_preview[:120] }}…"</small>
                 {% else %}
                     {{ g.context | tojson(indent=2) }}
                 {% endif %}

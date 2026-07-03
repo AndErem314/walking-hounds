@@ -232,7 +232,19 @@ class IntakeAgent(BaseAgent):
             return
 
         # 5. Check if client is known
-        client_known = await self._is_known_client(from_email)
+        if self._settings.intake_demo_mode:
+            # Demo mode: match by client name extracted from body, not email
+            client_email = await self._find_client_by_name(client_name)
+            if client_email:
+                from_email = client_email  # Use seed client's email for downstream agents
+                client_known = True
+            else:
+                # In demo mode, unknown names pass through — no gate
+                client_known = True
+                logger.info("IntakeAgent: demo mode — unknown name '%s', passing through", client_name)
+        else:
+            client_known = await self._is_known_client(from_email)
+
         if not client_known and intent != "query":
             await self.emit(
                 HumanApprovalRequired(
@@ -403,3 +415,14 @@ class IntakeAgent(BaseAgent):
             (email,),
         )
         return len(rows) > 0
+
+    async def _find_client_by_name(self, name: str | None) -> str | None:
+        """Demo mode: find a seed client's email by their name. Returns email or None."""
+        if not name:
+            return None
+        db = self._router.store.db
+        rows = await db.execute_fetchall(
+            "SELECT email FROM clients WHERE name = ? AND status = 'active'",
+            (name,),
+        )
+        return rows[0]["email"] if rows else None
