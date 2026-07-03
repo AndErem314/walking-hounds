@@ -157,7 +157,7 @@ class IntakeAgent(BaseAgent):
                 )
                 try:
                     await imap.connect()
-                    emails = await imap.fetch_unseen(folder=self._settings.imap_folder)
+                    emails = await imap.fetch_all(folder=self._settings.imap_folder, limit=10)
                     if emails:
                         logger.info("IntakeAgent: %d new emails", len(emails))
                         for email_data in emails:
