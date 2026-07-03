@@ -2,11 +2,16 @@
 
 Uses aioimaplib for non-blocking IMAP operations.
 Returns parsed email dictionaries: {message_id, from, subject, body, date}
+
+If the email's Message-ID header is missing (common with forwarded or
+phone-sent emails), a fallback SHA-256 hash of the email content is used
+as the message_id so that the IntakeAgent's dedup logic still works.
 """
 
 from __future__ import annotations
 
 import email
+import hashlib
 import logging
 from email import policy
 from email.parser import BytesParser
@@ -158,6 +163,14 @@ class IMAPClient:
 
         # Extract body (prefer plain text)
         body = self._extract_body(msg)
+
+        # Fallback message_id for emails without a Message-ID header
+        # (e.g. phone-sent emails, forwarded messages). Without this,
+        # the IntakeAgent dedup never marks them as processed and they
+        # reappear on every poll cycle.
+        if not message_id:
+            fallback_src = f"{from_email}|{subject}|{body[:500]}|{date_str}"
+            message_id = f"fallback-{hashlib.sha256(fallback_src.encode()).hexdigest()[:32]}"
 
         return {
             "message_id": message_id,

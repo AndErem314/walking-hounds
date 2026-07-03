@@ -82,13 +82,13 @@ CLIENTS_DOGS = [
     {
         "client": {"name": "David Peters", "email": "david.peters@example.com", "phone": "+49-30-1008-1008", "address": "Friedrichstrasse 55, Berlin"},
         "dogs": [
-            {"name": "Bella", "breed": "Beagle", "age_months": 26, "temperament": "friendly", "sex": "female", "castrated": "intact"},
+            {"name": "Bella", "breed": "Beagle", "age_months": 26, "temperament": "friendly", "sex": "female", "castrated": "intact", "in_heat": 1},
         ],
     },
     {
         "client": {"name": "Julia Richter", "email": "julia.richter@example.com", "phone": "+49-30-1009-1009", "address": "Chausseestrasse 18, Berlin"},
         "dogs": [
-            {"name": "Cooper", "breed": "Husky", "age_months": 40, "temperament": "energetic", "sex": "male", "castrated": "neutered"},
+            {"name": "Cooper", "breed": "Husky", "age_months": 40, "temperament": "energetic", "sex": "male", "castrated": "intact"},
         ],
     },
     # --- Puppies (4-10 months) ---

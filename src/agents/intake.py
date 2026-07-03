@@ -62,7 +62,10 @@ CRITICAL — Extract these fields ONLY if they are concretely present in the ema
     * Day of week with context: "this Friday", "next Monday"
     * Relative days: "tomorrow", "today" (resolve to YYYY-MM-DD based on current date)
     If the date is vague ("next week", "sometime soon", "maybe next week") → set to null
-- walk_slot: A specific time slot ("11:30", "12:00", "12:30") or null if not mentioned
+- walk_slot: A specific time slot ("11:30", "12:00", "12:30"). IMPORTANT: if the client
+    says "any time", "any available slot", "whenever works", or doesn't mention a specific
+    time → set walk_slot to null. This is NOT a missing field — the system will auto-assign
+    the best slot. A booking with dog_name + walk_date + null walk_slot is STILL clear.
 - reason: For cancellations/complaints, the stated reason
 - severity: For complaints only — "low", "medium", or "high"
 
@@ -71,11 +74,14 @@ CLARITY ASSESSMENT — set the "clarity" field:
 - "needs_clarification": Required fields are missing or vague
 
 Required fields by intent:
-- booking: dog_name AND walk_date must both be present
+- booking: dog_name AND walk_date must both be present (walk_slot is optional)
 - cancellation: dog_name AND (walk_date OR booking_ref) must be present
 - reschedule: dog_name AND new_date must be present
 - query: no required fields (always "clear")
 - complaint: no required fields (always "clear")
+
+IMPORTANT: missing_fields should ONLY list fields from the "Required fields" list above.
+Never include optional fields (walk_slot, reason, severity) in missing_fields.
 
 Respond as JSON only, no markdown:
 {
@@ -207,6 +213,32 @@ class IntakeAgent(BaseAgent):
         reason = parsed.get("reason", "")
         severity = parsed.get("severity", "medium")
         raw_message = f"From: {from_email}\nSubject: {subject}\n\n{body}"
+
+        # Safety net: if LLM flagged only optional (non-required) fields as missing,
+        # force clarity to "clear". The system auto-assigns walk_slot, reason is
+        # informational, and severity defaults. Required fields are:
+        #   booking: dog_name, walk_date
+        #   cancellation: dog_name, (walk_date OR booking_ref)
+        #   reschedule: dog_name, new_date
+        #   query/complaint: none
+        _required_by_intent: dict[str, set[str]] = {
+            "booking": {"dog_name", "walk_date"},
+            "cancellation": {"dog_name", "walk_date", "booking_ref"},
+            "reschedule": {"dog_name", "new_date"},
+            "query": set(),
+            "complaint": set(),
+        }
+        required = _required_by_intent.get(intent, set())
+        actual_missing = [f for f in missing_fields if f in required]
+        if clarity == "needs_clarification" and not actual_missing and missing_fields:
+            logger.info(
+                "IntakeAgent: LLM flagged only optional fields (%s) as missing — "
+                "overriding clarity to 'clear'", missing_fields,
+            )
+            clarity = "clear"
+            missing_fields = []
+        elif clarity == "needs_clarification" and actual_missing:
+            missing_fields = actual_missing  # strip optional fields from the list
 
         logger.info(
             "IntakeAgent: intent=%s clarity=%s from=%s dog=%s",

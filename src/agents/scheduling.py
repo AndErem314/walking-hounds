@@ -358,22 +358,54 @@ class SchedulingAgent(BaseAgent):
     ) -> dict | None:
         """Find an existing group with capacity, or create a new one.
 
-        Puppy rule: dogs aged 4-10 months go into a puppy group.
-        Adult dogs go into standard groups.
-        Puppies and adults are NOT mixed.
+        Grouping rules:
+        - Puppies (4-10 months) go into a puppy group, never mixed with adults.
+        - In-heat females: only groups with no intact (non-neutered) males.
+        - Intact males: only groups with no in-heat females.
+        - These two rules naturally steer in-heat females and intact males
+          into separate groups without requiring a dedicated group type.
         """
         is_puppy = self._is_puppy(dog)
         group_type = "puppy" if is_puppy else "standard"
 
+        # Build a "conflict exclusion" clause for heat/intact rules.
+        # When the arriving dog is an in-heat female, exclude groups that
+        # already contain intact males. When it's an intact male, exclude
+        # groups that already contain in-heat females.
+        conflict_exclusion = ""
+
+        if self._is_in_heat(dog):
+            # In-heat female → exclude groups with intact males
+            conflict_exclusion = """
+               AND g.id NOT IN (
+                   SELECT w.group_id FROM walks w
+                   JOIN dogs d ON w.dog_id = d.id
+                   WHERE w.group_id = g.id
+                     AND w.status = 'scheduled'
+                     AND d.sex = 'male'
+                     AND d.castrated = 'intact'
+               )"""
+        elif self._is_intact_male(dog):
+            # Intact male → exclude groups with in-heat females
+            conflict_exclusion = """
+               AND g.id NOT IN (
+                   SELECT w.group_id FROM walks w
+                   JOIN dogs d ON w.dog_id = d.id
+                   WHERE w.group_id = g.id
+                     AND w.status = 'scheduled'
+                     AND d.sex = 'female'
+                     AND d.in_heat = 1
+               )"""
+
         # Try to find an existing group with capacity
         rows = await self.db.execute_fetchall(
-            """SELECT g.id, g.name, g.walker_id, g.max_dogs, g.group_type,
+            f"""SELECT g.id, g.name, g.walker_id, g.max_dogs, g.group_type,
                       (SELECT COUNT(*) FROM walks w
                        WHERE w.group_id = g.id AND w.status = 'scheduled') as dog_count
                FROM walk_groups g
                WHERE g.date = ? AND g.slot = ? AND g.group_type = ?
                AND (SELECT COUNT(*) FROM walks w
-                    WHERE w.group_id = g.id AND w.status = 'scheduled') < g.max_dogs
+                    WHERE w.group_id = g.id AND w.status = 'scheduled') < g.max_dogs{conflict_exclusion}
                LIMIT 1""",
             (walk_date, walk_slot, group_type),
         )
@@ -468,6 +500,16 @@ class SchedulingAgent(BaseAgent):
         """Check if a dog is a puppy (4-10 months old)."""
         age = dog.get("age_months", 0)
         return 4 <= age <= 10
+
+    @staticmethod
+    def _is_in_heat(dog: dict) -> bool:
+        """Check if a female dog is currently in heat (läufig)."""
+        return dog.get("sex") == "female" and dog.get("in_heat", 0) == 1
+
+    @staticmethod
+    def _is_intact_male(dog: dict) -> bool:
+        """Check if a male dog is intact (not neutered/castrated)."""
+        return dog.get("sex") == "male" and dog.get("castrated", "") == "intact"
 
     def _is_business_day(self, date_str: str) -> bool:
         """Check if a date falls on a business day (Mon-Fri)."""

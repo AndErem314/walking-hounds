@@ -293,6 +293,47 @@ class TestIntakeAgentClarity:
         bookings = [e for e in emitted if isinstance(e, BookingIntent)]
         assert len(bookings) == 1
 
+    async def test_any_available_slot_not_treated_as_missing(self, setup_system, settings):
+        """'Walk Luna next Monday any time' → LLM flags walk_slot as missing,
+        but safety net overrides clarity to 'clear' since walk_slot is optional."""
+        router, db = setup_system
+        agent = IntakeAgent(router, settings)
+        agent._ollama = AsyncMock()
+        # Simulate LLM incorrectly flagging walk_slot as missing
+        agent._ollama.generate_json = AsyncMock(return_value={
+            "intent": "booking",
+            "clarity": "needs_clarification",
+            "missing_fields": ["walk_slot"],  # LLM error — walk_slot is optional
+            "client_name": "Tom Schmidt",
+            "dog_name": "Luna",
+            "walk_date": "next Monday",  # LLM returns relative, _resolve_date handles it
+            "walk_slot": None,
+            "reason": None,
+            "severity": None,
+            "summary": "Tom wants to book Luna for next Monday, any time",
+        })
+
+        emitted = _track_publish(router)
+
+        await agent._process_email({
+            "message_id": "any-slot-001",
+            "from_email": "tom.schmidt@example.com",
+            "subject": "Walk Luna next Monday",
+            "body": "I would like to book a walk for Luna for next Monday, for any available time slot. Tom Schmidt.",
+            "date": "Thu, 03 Jul 2025 10:00:00 +0200",
+        })
+
+        # Should NOT emit clarification — walk_slot is optional for bookings
+        clarifications = [e for e in emitted if isinstance(e, ClarificationRequest)]
+        assert len(clarifications) == 0, (
+            f"Expected no clarification, got: {[c.missing_fields for c in clarifications]}"
+        )
+        # Should emit a BookingIntent with walk_slot=None — system auto-assigns
+        bookings = [e for e in emitted if isinstance(e, BookingIntent)]
+        assert len(bookings) == 1
+        assert bookings[0].dog_name == "Luna"
+        assert bookings[0].walk_slot is None  # system will auto-assign
+
 
 class TestIntakeAgentDedup:
     """Test that duplicate emails are not processed twice."""

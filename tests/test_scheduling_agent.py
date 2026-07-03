@@ -689,3 +689,220 @@ class TestSchedulingHelpers:
     def test_parse_walk_datetime_invalid(self):
         dt = SchedulingAgent._parse_walk_datetime("invalid", "11:30")
         assert dt is None
+
+    def test_is_in_heat_true(self):
+        dog = {"sex": "female", "in_heat": 1}
+        assert SchedulingAgent._is_in_heat(dog) is True
+
+    def test_is_in_heat_false_male(self):
+        dog = {"sex": "male", "in_heat": 1}
+        assert SchedulingAgent._is_in_heat(dog) is False  # only females
+
+    def test_is_in_heat_false_not_in_heat(self):
+        dog = {"sex": "female", "in_heat": 0}
+        assert SchedulingAgent._is_in_heat(dog) is False
+
+    def test_is_in_heat_missing_field(self):
+        dog = {"sex": "female"}
+        assert SchedulingAgent._is_in_heat(dog) is False
+
+    def test_is_intact_male_true(self):
+        dog = {"sex": "male", "castrated": "intact"}
+        assert SchedulingAgent._is_intact_male(dog) is True
+
+    def test_is_intact_male_false_neutered(self):
+        dog = {"sex": "male", "castrated": "neutered"}
+        assert SchedulingAgent._is_intact_male(dog) is False
+
+    def test_is_intact_male_false_female(self):
+        dog = {"sex": "female", "castrated": "intact"}
+        assert SchedulingAgent._is_intact_male(dog) is False
+
+
+# ── Läufig (In-Heat) Group Tests ───────────────────────────
+
+class TestHeatGroupLogic:
+    """Test that in-heat females and intact males are placed in compatible groups."""
+
+    async def test_in_heat_female_goes_to_empty_group(self, setup_system, settings):
+        """An in-heat female placed first gets her own group."""
+        router, db = setup_system
+        agent = SchedulingAgent(router, settings)
+        await agent.start()
+        emitted = _track(router)
+
+        booking = BookingIntent(
+            client_email="david.peters@example.com",
+            client_name="David Peters",
+            dog_name="Bella",  # in_heat=1 in seed data
+            walk_date="2025-07-04",
+            walk_slot="11:30",
+        )
+        await router.publish(booking)
+        await asyncio.sleep(0.3)
+
+        confirmed = [e for e in emitted if isinstance(e, ScheduleConfirmed)]
+        assert len(confirmed) == 1
+        assert confirmed[0].dog_name == "Bella"
+        assert confirmed[0].walk_slot == "11:30"
+
+        # Verify Bella is booked
+        walks = await db.execute_fetchall(
+            "SELECT w.*, d.name, d.in_heat FROM walks w JOIN dogs d ON w.dog_id = d.id WHERE w.status='scheduled'"
+        )
+        assert len(walks) == 1
+        assert walks[0]["name"] == "Bella"
+
+        await agent.stop()
+
+    async def test_intact_male_goes_to_empty_group(self, setup_system, settings):
+        """An intact male placed first gets his own group."""
+        router, db = setup_system
+        agent = SchedulingAgent(router, settings)
+        await agent.start()
+        emitted = _track(router)
+
+        booking = BookingIntent(
+            client_email="julia.richter@example.com",
+            client_name="Julia Richter",
+            dog_name="Cooper",  # castrated='intact' in seed data
+            walk_date="2025-07-04",
+            walk_slot="11:30",
+        )
+        await router.publish(booking)
+        await asyncio.sleep(0.3)
+
+        confirmed = [e for e in emitted if isinstance(e, ScheduleConfirmed)]
+        assert len(confirmed) == 1
+        assert confirmed[0].dog_name == "Cooper"
+
+        await agent.stop()
+
+    async def test_in_heat_and_intact_male_separated(self, setup_system, settings):
+        """In-heat female and intact male go to DIFFERENT groups at same slot."""
+        router, db = setup_system
+        agent = SchedulingAgent(router, settings)
+        await agent.start()
+        emitted = _track(router)
+
+        # Book in-heat female first
+        await router.publish(BookingIntent(
+            client_email="david.peters@example.com",
+            client_name="David Peters",
+            dog_name="Bella",  # in_heat=1
+            walk_date="2025-07-04",
+            walk_slot="11:30",
+        ))
+        await asyncio.sleep(0.3)
+
+        # Book intact male at same slot
+        await router.publish(BookingIntent(
+            client_email="julia.richter@example.com",
+            client_name="Julia Richter",
+            dog_name="Cooper",  # intact male
+            walk_date="2025-07-04",
+            walk_slot="11:30",
+        ))
+        await asyncio.sleep(0.3)
+
+        confirmed = [e for e in emitted if isinstance(e, ScheduleConfirmed)]
+        assert len(confirmed) == 2
+
+        # They should be in DIFFERENT groups
+        group_ids = {c.group_id for c in confirmed}
+        assert len(group_ids) == 2, (
+            f"In-heat female and intact male should be in different groups, "
+            f"got groups: {group_ids}"
+        )
+
+        # Verify in DB
+        walks = await db.execute_fetchall(
+            "SELECT w.group_id, d.name, d.sex, d.castrated, d.in_heat "
+            "FROM walks w JOIN dogs d ON w.dog_id = d.id "
+            "WHERE w.status='scheduled' AND w.date='2025-07-04' AND w.slot='11:30'"
+        )
+        groups = {}
+        for w in walks:
+            groups.setdefault(w["group_id"], []).append(w["name"])
+        assert len(groups) == 2, f"Expected 2 separate groups, got {len(groups)}"
+
+        await agent.stop()
+
+    async def test_neutered_male_can_join_in_heat_female_group(self, setup_system, settings):
+        """A neutered male CAN join a group that has an in-heat female."""
+        router, db = setup_system
+        agent = SchedulingAgent(router, settings)
+        await agent.start()
+        emitted = _track(router)
+
+        # Book in-heat female
+        await router.publish(BookingIntent(
+            client_email="david.peters@example.com",
+            client_name="David Peters",
+            dog_name="Bella",  # in_heat=1
+            walk_date="2025-07-04",
+            walk_slot="11:30",
+        ))
+        await asyncio.sleep(0.3)
+
+        # Book neutered male at same slot — should join Bella's group
+        await router.publish(BookingIntent(
+            client_email="lisa.mueller@example.com",
+            client_name="Lisa Müller",
+            dog_name="Bello",  # neutered male
+            walk_date="2025-07-04",
+            walk_slot="11:30",
+        ))
+        await asyncio.sleep(0.3)
+
+        confirmed = [e for e in emitted if isinstance(e, ScheduleConfirmed)]
+        assert len(confirmed) == 2
+
+        # Bello (neutered) should be in the same group as Bella (in-heat)
+        bella = next(c for c in confirmed if c.dog_name == "Bella")
+        bello = next(c for c in confirmed if c.dog_name == "Bello")
+        assert bella.group_id == bello.group_id, (
+            f"Neutered male should join in-heat female's group. "
+            f"Bella: {bella.group_id}, Bello: {bello.group_id}"
+        )
+
+        await agent.stop()
+
+    async def test_spayed_female_can_join_intact_male_group(self, setup_system, settings):
+        """A spayed female CAN join a group that has an intact male."""
+        router, db = setup_system
+        agent = SchedulingAgent(router, settings)
+        await agent.start()
+        emitted = _track(router)
+
+        # Book intact male
+        await router.publish(BookingIntent(
+            client_email="julia.richter@example.com",
+            client_name="Julia Richter",
+            dog_name="Cooper",  # intact male
+            walk_date="2025-07-04",
+            walk_slot="11:30",
+        ))
+        await asyncio.sleep(0.3)
+
+        # Book spayed female at same slot — should join Cooper's group
+        await router.publish(BookingIntent(
+            client_email="tom.schmidt@example.com",
+            client_name="Tom Schmidt",
+            dog_name="Luna",  # spayed female
+            walk_date="2025-07-04",
+            walk_slot="11:30",
+        ))
+        await asyncio.sleep(0.3)
+
+        confirmed = [e for e in emitted if isinstance(e, ScheduleConfirmed)]
+        assert len(confirmed) == 2
+
+        cooper = next(c for c in confirmed if c.dog_name == "Cooper")
+        luna = next(c for c in confirmed if c.dog_name == "Luna")
+        assert cooper.group_id == luna.group_id, (
+            f"Spayed female should join intact male's group. "
+            f"Cooper: {cooper.group_id}, Luna: {luna.group_id}"
+        )
+
+        await agent.stop()
