@@ -16,7 +16,9 @@ from src.router.event import (
     CancellationIntent,
     ClarificationRequest,
     ComplaintIntent,
+    DogInfoProvided,
     HumanApprovalRequired,
+    OnboardingStarted,
     QueryIntent,
     RescheduleIntent,
 )
@@ -374,9 +376,9 @@ class TestIntakeAgentDedup:
 
 
 class TestIntakeAgentNewClientGate:
-    """Test that unknown clients trigger the new_client gate."""
+    """Test that unknown clients trigger the OnboardingStarted event."""
 
-    async def test_unknown_client_triggers_new_client_gate(self, setup_system, settings):
+    async def test_unknown_client_triggers_onboarding_started(self, setup_system, settings):
         router, db = setup_system
         agent = IntakeAgent(router, settings)
         agent._ollama = AsyncMock()
@@ -403,10 +405,10 @@ class TestIntakeAgentNewClientGate:
             "date": "Thu, 03 Jul 2025 10:00:00 +0200",
         })
 
-        gates = [e for e in emitted if isinstance(e, HumanApprovalRequired)]
-        assert len(gates) == 1
-        assert gates[0].gate_type == "new_client"
-        assert "approve_and_book" in gates[0].options
+        onboardings = [e for e in emitted if isinstance(e, OnboardingStarted)]
+        assert len(onboardings) == 1
+        assert onboardings[0].client_email == "newperson@example.com"
+        assert onboardings[0].original_intent == "booking"
 
     async def test_unknown_client_query_does_not_gate(self, setup_system, settings):
         """Queries from unknown senders should pass through."""
@@ -440,6 +442,76 @@ class TestIntakeAgentNewClientGate:
         assert len(queries) == 1
         gates = [e for e in emitted if isinstance(e, HumanApprovalRequired)]
         assert len(gates) == 0
+
+
+class TestIntakeAgentOnboardingDetection:
+    """Test that onboarding replies are detected and emit DogInfoProvided."""
+
+    async def test_onboarding_reply_emits_dog_info(self, setup_system, settings):
+        router, db = setup_system
+        agent = IntakeAgent(router, settings)
+
+        # Create an active onboarding session for this email
+        import json
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        await db.execute(
+            """INSERT INTO onboarding_sessions (id, email, status, first_contact_at, last_contact_at)
+               VALUES (?, ?, 'awaiting_info', ?, ?)""",
+            ("sess-001", "newclient@example.com", now, now),
+        )
+        await db.commit()
+
+        # Mock LLM: first call = standard parse, second call = onboarding parse
+        agent._ollama = AsyncMock()
+        agent._ollama.generate_json = AsyncMock(side_effect=[
+            {  # Standard parse — booking intent (triggers onboarding check)
+                "intent": "booking",
+                "clarity": "clear",
+                "missing_fields": [],
+                "client_name": "New Client",
+                "dog_name": "Rex",
+                "walk_date": "2025-07-10",
+                "walk_slot": "12:00",
+                "reason": None,
+                "severity": None,
+                "summary": "Booking",
+            },
+            {  # Onboarding parse — extracts dog info
+                "client_name": "New Client",
+                "dog_name": "Rex",
+                "breed": "German Shepherd",
+                "age_months": 36,
+                "sex": "male",
+                "castrated": "neutered",
+                "temperament": "energetic",
+                "special_needs": "",
+                "summary": "Dog info",
+            },
+        ])
+
+        emitted = _track_publish(router)
+
+        await agent._process_email({
+            "message_id": "onboard-reply-001",
+            "from_email": "newclient@example.com",
+            "subject": "Re: Welcome — dog info",
+            "body": "My dog is Rex, a 3-year-old German Shepherd, male, neutered, very energetic.",
+            "date": "Fri, 11 Jul 2025 10:00:00 +0200",
+        })
+
+        # Should emit DogInfoProvided, not BookingIntent or OnboardingStarted
+        dog_infos = [e for e in emitted if isinstance(e, DogInfoProvided)]
+        onboardings = [e for e in emitted if isinstance(e, OnboardingStarted)]
+        bookings = [e for e in emitted if isinstance(e, BookingIntent)]
+
+        assert len(dog_infos) == 1
+        assert len(onboardings) == 0
+        assert len(bookings) == 0
+        assert dog_infos[0].dog_name == "Rex"
+        assert dog_infos[0].breed == "German Shepherd"
+        assert dog_infos[0].sex == "male"
+        assert dog_infos[0].age_months == 36
 
 
 class TestIntakeAgentReschedule:

@@ -38,6 +38,7 @@ async def run() -> None:
 
     # ── Register agents ────────────────────────────────────
     from .agents.intake import IntakeAgent
+    from .agents.onboarding import OnboardingAgent
     from .agents.scheduling import SchedulingAgent
     from .agents.communication import CommunicationAgent
     from .agents.invoicing import InvoicingAgent
@@ -46,6 +47,7 @@ async def run() -> None:
 
     agents = [
         IntakeAgent(router, settings),
+        OnboardingAgent(router, settings),
         SchedulingAgent(router, settings),
         CommunicationAgent(router, settings),
         InvoicingAgent(router, settings),

@@ -138,6 +138,23 @@ CREATE TABLE IF NOT EXISTS approval_gates (
 
 CREATE INDEX IF NOT EXISTS idx_gates_status ON approval_gates(status);
 
+-- ── Onboarding Sessions ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS onboarding_sessions (
+    id              TEXT PRIMARY KEY,
+    email           TEXT NOT NULL,
+    client_name     TEXT,
+    status          TEXT NOT NULL DEFAULT 'awaiting_info',
+    dog_details     TEXT,                       -- JSON (parsed from client reply)
+    rate_limit_count INTEGER DEFAULT 0,
+    first_contact_at TEXT NOT NULL,
+    last_contact_at TEXT NOT NULL,
+    resolved_at     TEXT,
+    originating_gate_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_onboarding_email ON onboarding_sessions(email);
+CREATE INDEX IF NOT EXISTS idx_onboarding_status ON onboarding_sessions(status);
+
 -- ── Processed Emails (dedup) ─────────────────────────────
 CREATE TABLE IF NOT EXISTS processed_emails (
     message_id  TEXT PRIMARY KEY,

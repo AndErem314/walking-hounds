@@ -202,5 +202,6 @@ class TestTemplateRegistry:
             "payment_reminder",
             "walker_briefing",
             "feedback_request",
+            "onboarding_welcome",
         }
         assert expected == set(TEMPLATES.keys())

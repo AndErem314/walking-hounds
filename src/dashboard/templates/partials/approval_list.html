@@ -30,6 +30,14 @@
                     {% if g.context.walk_date %} · {{ g.context.walk_date }}{% endif %}
                     {% if g.context.walk_slot %} · {{ g.context.walk_slot }}{% endif %}
                     <br><small style="color:#888">"{{ g.context.body_preview[:120] }}…"</small>
+                {% elif g.gate_type == 'onboarding_approval' %}
+                    <strong>📧 {{ g.context.email }}</strong><br>
+                    <small>New client: {{ g.context.client_name }}</small><br>
+                    {% if g.context.dog_details %}
+                    🐕 <strong>{{ g.context.dog_details.dog_name }}</strong>
+                    ({{ g.context.dog_details.breed }}, {{ g.context.dog_details.age_months }}mo, {{ g.context.dog_details.sex }})
+                    {% if g.context.dog_details.special_needs %}<br><small>⚠️ {{ g.context.dog_details.special_needs }}</small>{% endif %}
+                    {% endif %}
                 {% elif g.gate_type == 'unusual_request' %}
                     <strong>📧 {{ g.context.from_email }}</strong><br>
                     <small>Intent: {{ g.context.intent }}</small><br>
@@ -40,6 +48,20 @@
             </td>
             <td>{{ g.created_at[:19] }}</td>
             <td class="approval-actions">
+                {% if g.gate_type == 'onboarding_approval' %}
+                <button class="btn btn-approve"
+                        hx-post="/approvals/{{ g.id }}/resolve?decision=approve_and_activate"
+                        hx-target="#approval-list"
+                        hx-swap="innerHTML">
+                    ✅ Approve & Activate
+                </button>
+                <button class="btn btn-reject"
+                        hx-post="/approvals/{{ g.id }}/resolve?decision=rejected"
+                        hx-target="#approval-list"
+                        hx-swap="innerHTML">
+                    ❌ Reject
+                </button>
+                {% else %}
                 <button class="btn btn-approve"
                         hx-post="/approvals/{{ g.id }}/resolve?decision=approved"
                         hx-target="#approval-list"
@@ -52,6 +74,7 @@
                         hx-swap="innerHTML">
                     ❌ Reject
                 </button>
+                {% endif %}
             </td>
         </tr>
         {% endfor %}

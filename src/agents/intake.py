@@ -30,7 +30,9 @@ from ..router.event import (
     CancellationIntent,
     ClarificationRequest,
     ComplaintIntent,
+    DogInfoProvided,
     HumanApprovalRequired,
+    OnboardingStarted,
     QueryIntent,
     RescheduleIntent,
 )
@@ -98,6 +100,44 @@ Respond as JSON only, no markdown:
 }"""
 
 USER_PROMPT_TEMPLATE = """Parse this email for the dog-walking business.
+
+From: {from_email}
+Subject: {subject}
+
+Body:
+{body}
+
+Respond as JSON only."""
+
+
+ONBOARDING_SYSTEM_PROMPT = """You are an email parser for a dog-walking business called Walking Hounds.
+A new client is replying to our onboarding questionnaire with information about their dog.
+Extract the following fields from their reply:
+
+- client_name: The sender's name
+- dog_name: The dog's name (REQUIRED)
+- breed: Dog breed (e.g. "Labrador", "mixed breed") (REQUIRED)
+- age_months: Age in months. If given in years, multiply by 12 (REQUIRED)
+- sex: "male" or "female" (REQUIRED)
+- castrated: "neutered" (male), "spayed" (female), or "intact" if not fixed
+- temperament: Personality description (calm, energetic, anxious, friendly, etc.)
+- special_needs: Any special needs mentioned
+
+Respond as JSON only, no markdown:
+{
+  "client_name": "string or null",
+  "dog_name": "string or null",
+  "breed": "string or null",
+  "age_months": "number or null",
+  "sex": "male|female|null",
+  "castrated": "neutered|spayed|intact|null",
+  "temperament": "string or null",
+  "special_needs": "string or null",
+  "summary": "one-sentence summary"
+}"""
+
+
+ONBOARDING_USER_TEMPLATE = """Parse this reply from a new client providing their dog's information.
 
 From: {from_email}
 Subject: {subject}
@@ -245,6 +285,30 @@ class IntakeAgent(BaseAgent):
             intent, clarity, from_email, dog_name,
         )
 
+        # 3a. Onboarding detection: if this sender has an active onboarding session,
+        # re-parse with dog-info prompt and emit DogInfoProvided instead.
+        if await self._has_active_onboarding(from_email):
+            onboarding_parsed = await self._parse_onboarding_reply(from_email, subject, body)
+            if onboarding_parsed and onboarding_parsed.get("dog_name"):
+                await self.emit(DogInfoProvided(
+                    client_email=from_email,
+                    client_name=onboarding_parsed.get("client_name") or client_name,
+                    dog_name=onboarding_parsed["dog_name"],
+                    breed=onboarding_parsed.get("breed", ""),
+                    age_months=onboarding_parsed.get("age_months"),
+                    sex=onboarding_parsed.get("sex", ""),
+                    castrated=onboarding_parsed.get("castrated", ""),
+                    temperament=onboarding_parsed.get("temperament", ""),
+                    special_needs=onboarding_parsed.get("special_needs", ""),
+                    raw_message=raw_message,
+                ))
+                logger.info(
+                    "IntakeAgent: onboarding reply from %s (dog=%s) → DogInfoProvided",
+                    from_email, onboarding_parsed["dog_name"],
+                )
+                return
+            logger.debug("IntakeAgent: onboarding reply from %s had no dog_name, treating normally", from_email)
+
         # 4. Check clarity — if fields are missing/vague, request clarification
         if clarity == "needs_clarification" and missing_fields:
             await self.emit(
@@ -278,24 +342,13 @@ class IntakeAgent(BaseAgent):
             client_known = await self._is_known_client(from_email)
 
         if not client_known and intent != "query":
-            await self.emit(
-                HumanApprovalRequired(
-                    gate_type="new_client",
-                    context={
-                        "from_email": from_email,
-                        "client_name": client_name,
-                        "dog_name": dog_name,
-                        "intent": intent,
-                        "walk_date": walk_date,
-                        "walk_slot": walk_slot,
-                        "subject": subject,
-                        "body_preview": body[:500],
-                        "message_id": message_id,
-                    },
-                    options=["approve_and_book", "approve_no_book", "reject"],
-                )
-            )
-            logger.info("IntakeAgent: unknown client %s → new_client gate", from_email)
+            await self.emit(OnboardingStarted(
+                client_email=from_email,
+                client_name=client_name,
+                original_intent=intent,
+                raw_message=raw_message,
+            ))
+            logger.info("IntakeAgent: unknown client %s → OnboardingStarted", from_email)
             return
 
         # 6. Emit the typed event
@@ -436,6 +489,37 @@ class IntakeAgent(BaseAgent):
         await db.commit()
 
     # ── Client Lookup ──────────────────────────────────────
+
+    async def _has_active_onboarding(self, email: str) -> bool:
+        """Check if this sender has an active onboarding session."""
+        if not email:
+            return False
+        db = self._router.store.db
+        rows = await db.execute_fetchall(
+            """SELECT 1 FROM onboarding_sessions
+               WHERE email = ? AND status IN ('awaiting_info', 'pending_approval')
+               LIMIT 1""",
+            (email,),
+        )
+        return len(rows) > 0
+
+    async def _parse_onboarding_reply(self, from_email: str, subject: str, body: str) -> dict:
+        """Parse a reply email as dog-info using the onboarding-specific prompt."""
+        prompt = ONBOARDING_USER_TEMPLATE.format(
+            from_email=from_email,
+            subject=subject,
+            body=body[:2000],
+        )
+        try:
+            result = await self._ollama.generate_json(
+                prompt=prompt,
+                system=ONBOARDING_SYSTEM_PROMPT,
+                temperature=0.2,
+            )
+            return result
+        except Exception as exc:
+            logger.error("IntakeAgent: onboarding parse failed: %s", exc)
+            return {}
 
     @staticmethod
     def _resolve_date(date_str: str | None) -> str | None:

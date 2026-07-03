@@ -202,6 +202,39 @@ If you have any feedback or concerns, just reply to this email.
     return subject, body
 
 
+def onboarding_welcome(
+    *,
+    client_name: str = "there",
+) -> tuple[str, str]:
+    """Onboarding email — sent when a new client emails for the first time.
+    Asks for all the information needed to register them and their dog."""
+    subject = "🐕 Welcome to Walking Hounds — tell us about your dog!"
+    body = f"""Hi {client_name},
+
+Welcome to Walking Hounds! We'd love to get you set up for walks.
+
+To create your account, please reply to this email with the following
+information about your dog:
+
+  • Name (your dog's name)
+  • Breed (e.g. Labrador, mixed breed)
+  • Age (in months or years)
+  • Sex (male or female)
+  • Is your dog spayed/neutered? (yes or no)
+  • Any special needs or temperament notes (e.g. anxious, energetic)
+
+Optional but helpful:
+  • Your preferred walk days and times
+  • Any other dogs you'd like to register
+
+Once we have this info, we'll get your account approved and you can
+start booking walks right away!
+
+— The Walking Hounds Team
+"""
+    return subject, body
+
+
 # ── Template registry ──────────────────────────────────────
 
 TEMPLATES = {
@@ -213,4 +246,5 @@ TEMPLATES = {
     "payment_reminder": payment_reminder,
     "walker_briefing": walker_briefing,
     "feedback_request": feedback_request,
+    "onboarding_welcome": onboarding_welcome,
 }

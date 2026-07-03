@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     min_groups_per_day: int = 2
     business_days: str = "mon,tue,wed,thu,fri"
 
+    # ── Onboarding ─────────────────────────────────────────
+    onboarding_rate_limit_per_min: int = 0  # 0 = disabled (test mode)
+
     # ── Intake ─────────────────────────────────────────────
     imap_poll_interval_sec: int = 60
     intake_confidence_threshold: float = 0.75

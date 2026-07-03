@@ -108,6 +108,32 @@ class ComplaintIntent(BaseEvent):
     raw_message: str = ""
 
 
+# ── Onboarding events ─────────────────────────────────────
+
+class OnboardingStarted(BaseEvent):
+    """A new (unknown) client wants to book — kick off onboarding."""
+    client_email: str
+    client_name: str | None = None
+    original_intent: str = "booking"   # booking / query / etc.
+    raw_message: str = ""
+
+
+class DogInfoProvided(BaseEvent):
+    """Client replied to onboarding with dog information."""
+    client_email: str
+    client_name: str | None = None
+    dog_name: str
+    breed: str = ""
+    age_months: int | None = None
+    sex: str = ""               # male / female
+    castrated: str = ""         # neutered / intact / spayed / intact (female)
+    in_heat: int = 0
+    temperament: str = ""
+    special_needs: str = ""
+    session_id: str = ""         # links back to onboarding_sessions
+    raw_message: str = ""
+
+
 # ── Scheduling events ──────────────────────────────────────
 
 class ScheduleConfirmed(BaseEvent):
@@ -265,6 +291,8 @@ class EventType(str, Enum):
     QUERY_INTENT = "QueryIntent"
     CLARIFICATION_REQUEST = "ClarificationRequest"
     COMPLAINT_INTENT = "ComplaintIntent"
+    ONBOARDING_STARTED = "OnboardingStarted"
+    DOG_INFO_PROVIDED = "DogInfoProvided"
     SCHEDULE_CONFIRMED = "ScheduleConfirmed"
     SCHEDULE_CONFLICT = "ScheduleConflict"
     CANCELLATION_CONFIRMED = "CancellationConfirmed"
@@ -290,6 +318,8 @@ EVENT_REGISTRY: dict[str, type[BaseEvent]] = {
     EventType.QUERY_INTENT.value: QueryIntent,
     EventType.CLARIFICATION_REQUEST.value: ClarificationRequest,
     EventType.COMPLAINT_INTENT.value: ComplaintIntent,
+    EventType.ONBOARDING_STARTED.value: OnboardingStarted,
+    EventType.DOG_INFO_PROVIDED.value: DogInfoProvided,
     EventType.SCHEDULE_CONFIRMED.value: ScheduleConfirmed,
     EventType.SCHEDULE_CONFLICT.value: ScheduleConflict,
     EventType.CANCELLATION_CONFIRMED.value: CancellationConfirmed,
