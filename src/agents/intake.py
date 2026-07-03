@@ -202,7 +202,7 @@ class IntakeAgent(BaseAgent):
         missing_fields = parsed.get("missing_fields", [])
         client_name = parsed.get("client_name")
         dog_name = parsed.get("dog_name")
-        walk_date = parsed.get("walk_date")
+        walk_date = self._resolve_date(parsed.get("walk_date"))
         walk_slot = parsed.get("walk_slot")
         reason = parsed.get("reason", "")
         severity = parsed.get("severity", "medium")
@@ -404,6 +404,58 @@ class IntakeAgent(BaseAgent):
         await db.commit()
 
     # ── Client Lookup ──────────────────────────────────────
+
+    @staticmethod
+    def _resolve_date(date_str: str | None) -> str | None:
+        """Resolve relative dates from LLM output to ISO format.
+        
+        Handles: 'this Monday', 'next Friday', 'tomorrow', 'today',
+        ISO dates (passed through), and null/vague dates.
+        """
+        if not date_str:
+            return None
+
+        from datetime import date, timedelta
+
+        today = date.today()
+        date_lower = date_str.strip().lower()
+
+        # Already ISO format? Pass through
+        try:
+            date.fromisoformat(date_str)
+            return date_str
+        except (ValueError, TypeError):
+            pass
+
+        # Relative days
+        if date_lower == "today":
+            return today.isoformat()
+        if date_lower == "tomorrow":
+            return (today + timedelta(days=1)).isoformat()
+        if date_lower == "yesterday":
+            return (today - timedelta(days=1)).isoformat()
+
+        # 'this Monday', 'next Friday', etc.
+        day_names = {
+            "monday": 0, "tuesday": 1, "wednesday": 2,
+            "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6,
+        }
+        import re
+        match = re.match(r"(this|next)\s+(\w+)", date_lower)
+        if match:
+            prefix, day = match.group(1), match.group(2)
+            if day in day_names:
+                target_weekday = day_names[day]
+                current_weekday = today.weekday()
+                if prefix == "this":
+                    delta = (target_weekday - current_weekday) % 7
+                else:  # "next"
+                    delta = (target_weekday - current_weekday) % 7 + 7
+                resolved = today + timedelta(days=delta)
+                return resolved.isoformat()
+
+        # Vague — return None
+        return None
 
     async def _is_known_client(self, email: str) -> bool:
         """Check if this email belongs to a known client."""
