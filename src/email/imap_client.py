@@ -37,7 +37,12 @@ class IMAPClient:
         """Connect and login to the IMAP server."""
         self._client = aioimaplib.IMAP4_SSL(host=self._host, port=self._port)
         await self._client.wait_hello_from_server()
-        await self._client.login(self._user, self._password)
+        resp = await self._client.login(self._user, self._password)
+        if resp.result != "OK":
+            raise RuntimeError(
+                f"IMAP login failed for {self._user}: {resp.result} — "
+                f"check credentials (Gmail requires an App Password, not your account password)"
+            )
         logger.info("IMAP connected: %s", self._user)
 
     async def disconnect(self) -> None:
