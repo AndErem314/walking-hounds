@@ -77,7 +77,7 @@ class IMAPClient:
             if isinstance(resp, bytes) and resp.strip():
                 ids.extend(resp.decode().split())
 
-        logger.debug("IMAP folder '%s': %d unseen", folder, len(ids))
+        logger.info("IMAP folder '%s': %d unseen", folder, len(ids))
 
         if not ids:
             return []
