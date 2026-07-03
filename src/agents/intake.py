@@ -155,19 +155,22 @@ class IntakeAgent(BaseAgent):
                     user=self._settings.imap_user,
                     password=self._settings.imap_password,
                 )
-                await imap.connect()
-                emails = await imap.fetch_unseen(folder=self._settings.imap_folder)
-                await imap.disconnect()
-
-                if emails:
-                    logger.info("IntakeAgent: %d new emails", len(emails))
-                    for email_data in emails:
-                        await self._process_email(email_data)
+                try:
+                    await imap.connect()
+                    emails = await imap.fetch_unseen(folder=self._settings.imap_folder)
+                    if emails:
+                        logger.info("IntakeAgent: %d new emails", len(emails))
+                        for email_data in emails:
+                            await self._process_email(email_data)
+                    else:
+                        logger.debug("IntakeAgent: no new emails in '%s'", self._settings.imap_folder)
+                finally:
+                    await imap.disconnect()
 
             except asyncio.CancelledError:
                 break
             except Exception as exc:
-                logger.error("IntakeAgent poll error: %s", exc)
+                logger.error("IntakeAgent poll error: %s (%s)", exc, type(exc).__name__)
 
             await asyncio.sleep(self._poll_interval)
 
