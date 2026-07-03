@@ -57,7 +57,10 @@ All agents communicate exclusively through typed events on an async `EventRouter
 ## Quick Start
 
 ```bash
-# Install
+# Create and activate a virtual environment
+python3 -m venv .venv && source .venv/bin/activate
+
+# Install in editable mode with dev dependencies
 pip install -e ".[dev]"
 
 # Initialize database + seed data

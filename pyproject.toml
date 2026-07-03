@@ -31,8 +31,11 @@ dev = [
 [project.scripts]
 walking-hounds = "walking_hounds.cli:cli"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools.package-dir]
+"walking_hounds" = "src"
+
+[tool.setuptools]
+packages = ["walking_hounds", "walking_hounds.agents", "walking_hounds.db", "walking_hounds.email", "walking_hounds.llm", "walking_hounds.router", "walking_hounds.dashboard"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
