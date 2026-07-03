@@ -28,6 +28,6 @@ def tmp_db_path(tmp_path: Path) -> str:
 def settings(tmp_db_path: str):
     """Override settings to use tmp DB."""
     from src.config import Settings
-    s = Settings(db_path=tmp_db_path)
+    s = Settings(db_path=tmp_db_path, intake_demo_mode=False)
     s.ensure_dirs()
     return s

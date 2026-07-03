@@ -60,7 +60,12 @@
     <div class="two-col">
         <!-- ── Today's Schedule ─────────────────────────── -->
         <section class="card">
-            <h2>📅 Today's Schedule — {{ today }}</h2>
+            <h2>📅 Schedule — {{ target_date }}</h2>
+            <div class="date-nav" style="margin-bottom: 12px;">
+                <a href="/?date={{ prev_date }}" class="btn btn-sm">← Prev</a>
+                <a href="/" class="btn btn-sm">Today</a>
+                <a href="/?date={{ next_date }}" class="btn btn-sm">Next →</a>
+            </div>
             {% if walks %}
             <table class="table">
                 <thead>

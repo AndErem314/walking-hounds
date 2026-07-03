@@ -75,12 +75,20 @@ def create_dashboard_app(
     # ── Routes ──────────────────────────────────────────────
 
     @app.get("/", response_class=HTMLResponse)
-    async def dashboard_home(request: Request):
+    async def dashboard_home(request: Request, date: str | None = None):
+        from datetime import timedelta
+
         db = router.store.db
+        target_date = date or datetime.now(timezone.utc).date().isoformat()
         today = datetime.now(timezone.utc).date().isoformat()
 
-        # Today's walks
-        walks = await _get_walks_for_date(db, today)
+        # Calculate prev/next for schedule navigation
+        target_dt = datetime.fromisoformat(target_date)
+        prev_date = (target_dt - timedelta(days=1)).date().isoformat()
+        next_date = (target_dt + timedelta(days=1)).date().isoformat()
+
+        # Walks for the target date
+        walks = await _get_walks_for_date(db, target_date)
 
         # Stats
         stats = await _get_dashboard_stats(db)
@@ -97,6 +105,9 @@ def create_dashboard_app(
         return templates.TemplateResponse(request=request, name="dashboard.html", context={
             "request": request,
             "today": today,
+            "target_date": target_date,
+            "prev_date": prev_date,
+            "next_date": next_date,
             "walks": walks,
             "stats": stats,
             "approvals": approvals,
@@ -110,6 +121,12 @@ def create_dashboard_app(
         target_date = date or datetime.now(timezone.utc).date().isoformat()
         walks = await _get_walks_for_date(db, target_date)
 
+        # Calculate prev/next dates for navigation
+        from datetime import timedelta
+        target_dt = datetime.fromisoformat(target_date)
+        prev_date = (target_dt - timedelta(days=1)).date().isoformat()
+        next_date = (target_dt + timedelta(days=1)).date().isoformat()
+
         # Group by slot
         slots: dict[str, list[dict]] = {}
         for w in walks:
@@ -118,6 +135,8 @@ def create_dashboard_app(
         return templates.TemplateResponse(request=request, name="schedule.html", context={
             "request": request,
             "target_date": target_date,
+            "prev_date": prev_date,
+            "next_date": next_date,
             "slots": slots,
             "walk_slot_list": settings.walk_slot_list,
         })

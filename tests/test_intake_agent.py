@@ -46,7 +46,7 @@ async def setup_system(tmp_db_path):
 
 @pytest.fixture
 def settings(tmp_db_path):
-    return Settings(db_path=tmp_db_path, imap_poll_interval_sec=999)
+    return Settings(db_path=tmp_db_path, imap_poll_interval_sec=999, intake_demo_mode=False)
 
 
 def _track_publish(router):
