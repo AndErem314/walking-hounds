@@ -71,11 +71,10 @@ class IMAPClient:
             logger.warning("IMAP search returned: %s", status)
             return []
 
-        # Parse message IDs from response
+        # Parse message IDs from response (only the first element contains IDs)
         ids = []
-        for resp in responses:
-            if isinstance(resp, bytes) and resp.strip():
-                ids.extend(resp.decode().split())
+        if responses and isinstance(responses[0], bytes) and responses[0].strip():
+            ids = [x for x in responses[0].decode().split() if x]
 
         logger.info("IMAP folder '%s': %d unseen", folder, len(ids))
 
@@ -132,12 +131,19 @@ class IMAPClient:
         if status != "OK":
             return None
 
-        # Find the RFC822 body in the response
+        # Find the RFC822 body in the response.
+        # aioimaplib returns flat data: [status_line, bytearray(body), ...]
+        # Fallback: try tuple (older aioimaplib), then bytearray (current)
         raw_bytes = None
         for resp in responses:
             if isinstance(resp, tuple) and len(resp) >= 2:
                 raw_bytes = resp[1]
                 break
+        if raw_bytes is None:
+            for resp in responses:
+                if isinstance(resp, (bytes, bytearray)) and len(resp) > 100:
+                    raw_bytes = resp
+                    break
 
         if not raw_bytes:
             return None
