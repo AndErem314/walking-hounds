@@ -1,13 +1,17 @@
 """Reminder Agent — time-based triggers and notifications.
 
-Subscribes to: ScheduleConfirmed (to schedule future reminders)
+Subscribes to: (none — timer-driven)
 Emits: ReminderDue, WalkCompleted
 
 Runs a periodic timer loop that checks for:
 - Walk reminders: REMINDER_HOURS_BEFORE_WALK (default 2h) before each scheduled walk
 - Walker morning briefings: at 08:00 on business days
-- Post-walk feedback requests: after walk slot ends
-- Invoice overdue check: delegates to InvoicingAgent.check_overdue_invoices()
+- Post-walk feedback requests: after walk slot ends (also marks walk as completed)
+
+Not yet implemented (future work):
+- Invoice overdue trigger (InvoicingAgent.check_overdue_invoices() exists, timer hook is a stub)
+- Next-day schedule confirmation (20:00 reminder to clients)
+- LoggerAgent daily summary journal entry (currently reactive only)
 
 All timers are recomputed from target times on boot — survives restarts.
 """
