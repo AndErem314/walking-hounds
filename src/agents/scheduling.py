@@ -99,6 +99,25 @@ class SchedulingAgent(BaseAgent):
             ))
             return
 
+        # Reject dates in the past
+        today = datetime.now(timezone.utc).date()
+        try:
+            walk_date_dt = datetime.fromisoformat(walk_date).date()
+        except ValueError:
+            await self.emit(ScheduleConflict(
+                conflict_details=f"Invalid walk date format: '{walk_date}'",
+                alternatives=[],
+                original_intent_event_id=event.id,
+            ))
+            return
+        if walk_date_dt < today:
+            await self.emit(ScheduleConflict(
+                conflict_details=f"{walk_date} is in the past (today is {today.isoformat()})",
+                alternatives=self._suggest_next_business_days(today.isoformat(), 3),
+                original_intent_event_id=event.id,
+            ))
+            return
+
         # Check if business day
         if not self._is_business_day(walk_date):
             await self.emit(ScheduleConflict(

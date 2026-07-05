@@ -101,6 +101,9 @@ Respond as JSON only, no markdown:
 
 USER_PROMPT_TEMPLATE = """Parse this email for the dog-walking business.
 
+Today's date: {today}
+Current day of week: {dow}
+
 From: {from_email}
 Subject: {subject}
 
@@ -447,7 +450,10 @@ class IntakeAgent(BaseAgent):
 
     async def _parse_email(self, from_email: str, subject: str, body: str) -> dict:
         """Send email to Ollama and parse the structured JSON response."""
+        now = datetime.now(timezone.utc)
         prompt = USER_PROMPT_TEMPLATE.format(
+            today=now.date().isoformat(),
+            dow=now.strftime("%A"),
             from_email=from_email,
             subject=subject,
             body=body[:2000],  # truncate to avoid token overflow

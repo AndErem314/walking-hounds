@@ -87,7 +87,7 @@ class TestSchedulingBooking:
             client_email="lisa.mueller@example.com",
             client_name="Lisa Müller",
             dog_name="Bello",
-            walk_date="2025-07-04",  # Friday
+            walk_date="2027-07-02",  # Friday
             walk_slot="11:30",
         )
         await router.publish(booking)
@@ -96,13 +96,13 @@ class TestSchedulingBooking:
         confirmed = [e for e in emitted if isinstance(e, ScheduleConfirmed)]
         assert len(confirmed) == 1
         assert confirmed[0].dog_name == "Bello"
-        assert confirmed[0].walk_date == "2025-07-04"
+        assert confirmed[0].walk_date == "2027-07-02"
         assert confirmed[0].walk_slot == "11:30"
 
         # Check walk in DB
         walks = await db.execute_fetchall("SELECT * FROM walks WHERE status='scheduled'")
         assert len(walks) == 1
-        assert walks[0]["date"] == "2025-07-04"
+        assert walks[0]["date"] == "2027-07-02"
 
         await agent.stop()
 
@@ -115,7 +115,7 @@ class TestSchedulingBooking:
         booking = BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             # no walk_slot specified
         )
         await router.publish(booking)
@@ -138,7 +138,7 @@ class TestSchedulingBooking:
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -147,7 +147,7 @@ class TestSchedulingBooking:
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="12:00",
         ))
         await asyncio.sleep(0.3)
@@ -181,7 +181,7 @@ class TestWalkerAssignment:
             await router.publish(BookingIntent(
                 client_email=email,
                 dog_name=dog,
-                walk_date="2025-07-04",
+                walk_date="2027-07-02",
                 walk_slot=slot,
             ))
             await asyncio.sleep(0.2)
@@ -217,7 +217,7 @@ class TestWalkerAssignment:
         for email, dog, slot in bookings:
             await router.publish(BookingIntent(
                 client_email=email, dog_name=dog,
-                walk_date="2025-07-04", walk_slot=slot,
+                walk_date="2027-07-02", walk_slot=slot,
             ))
             await asyncio.sleep(0.2)
 
@@ -244,7 +244,7 @@ class TestPuppyGroups:
         await router.publish(BookingIntent(
             client_email="martin.klein@example.com",
             dog_name="Milo",  # puppy
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.2)
@@ -252,7 +252,7 @@ class TestPuppyGroups:
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",  # adult
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.2)
@@ -265,7 +265,7 @@ class TestPuppyGroups:
         assert len(group_ids) == 2  # different groups
 
         # Check group types in DB
-        groups = await db.execute_fetchall("SELECT * FROM walk_groups WHERE date='2025-07-04'")
+        groups = await db.execute_fetchall("SELECT * FROM walk_groups WHERE date='2027-07-02'")
         group_types = {g["group_type"] for g in groups}
         assert "puppy" in group_types
         assert "standard" in group_types
@@ -282,7 +282,7 @@ class TestPuppyGroups:
         await router.publish(BookingIntent(
             client_email="martin.klein@example.com",
             dog_name="Milo",  # 6 months
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.2)
@@ -290,7 +290,7 @@ class TestPuppyGroups:
         await router.publish(BookingIntent(
             client_email="nina.fischer@example.com",
             dog_name="Coco",  # 5 months
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.2)
@@ -324,7 +324,7 @@ class TestGroupCapacity:
         for email, dog in dogs:
             await router.publish(BookingIntent(
                 client_email=email, dog_name=dog,
-                walk_date="2025-07-04", walk_slot="11:30",
+                walk_date="2027-07-02", walk_slot="11:30",
             ))
             await asyncio.sleep(0.2)
 
@@ -339,7 +339,7 @@ class TestGroupCapacity:
         await router.publish(BookingIntent(
             client_email="mia.hoffmann@example.com",
             dog_name="Bruno",
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.2)
@@ -388,7 +388,7 @@ class TestGroupCapacity:
             slot = slots[i % 3]
             await router.publish(BookingIntent(
                 client_email=email, dog_name=dog,
-                walk_date="2025-07-04", walk_slot=slot,
+                walk_date="2027-07-02", walk_slot=slot,
             ))
             await asyncio.sleep(0.2)
 
@@ -412,11 +412,11 @@ class TestBusinessDays:
         await agent.start()
         emitted = _track(router)
 
-        # 2025-07-05 is a Saturday
+        # 2027-07-03 is a Saturday
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            walk_date="2025-07-05",
+            walk_date="2027-07-03",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -434,11 +434,11 @@ class TestBusinessDays:
         await agent.start()
         emitted = _track(router)
 
-        # 2025-07-07 is a Monday
+        # 2027-07-05 is a Monday
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            walk_date="2025-07-07",
+            walk_date="2027-07-05",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -458,8 +458,12 @@ class TestCancellation:
         await agent.start()
         emitted = _track(router)
 
-        # Book a walk far in the future
-        future_date = (datetime.now(timezone.utc) + timedelta(days=7)).date().isoformat()
+        # Book a walk far in the future — use next Monday or later business day
+        today = datetime.now(timezone.utc).date()
+        days_to_monday = (7 - today.weekday()) % 7
+        if days_to_monday == 0:
+            days_to_monday = 1  # if today is Monday, use tomorrow (Tue)
+        future_date = (today + timedelta(days=days_to_monday + 7)).isoformat()
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
@@ -494,26 +498,36 @@ class TestCancellation:
         await agent.start()
         emitted = _track(router)
 
-        # Book a walk in 2 hours (less than 24h)
-        future_dt = datetime.now(timezone.utc) + timedelta(hours=2)
-        future_date = future_dt.date().isoformat()
-        future_slot = f"{future_dt.hour:02d}:{future_dt.minute:02d}"
-
-        # First create the walk directly in DB (since the slot might not match config)
-        # Actually let's use a valid slot and adjust the date to be near
+        # Book a walk on a business day first, then manipulate its datetime
+        # to be within 24h to trigger the late-cancel path
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            walk_date=future_date,
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
+
+        # Find the walk and set its datetime to ~1 hour from now
+        now = datetime.now(timezone.utc)
+        near_date = now.date().isoformat()
+        near_time = (now + timedelta(hours=1)).strftime("%H:%M")
+        walks = await db.execute_fetchall(
+            "SELECT id FROM walks WHERE status='scheduled' AND dog_id="
+            "(SELECT id FROM dogs WHERE name='Bello')"
+        )
+        if walks:
+            await db.execute(
+                "UPDATE walks SET date=?, slot=? WHERE id=?",
+                (near_date, near_time, walks[0]["id"]),
+            )
+            await db.commit()
 
         # Cancel it
         await router.publish(CancellationIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            walk_date=future_date,
+            walk_date=near_date,
             reason="Emergency",
         ))
         await asyncio.sleep(0.3)
@@ -540,7 +554,7 @@ class TestReschedule:
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -549,22 +563,22 @@ class TestReschedule:
         await router.publish(RescheduleIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            original_date="2025-07-04",
-            new_date="2025-07-11",
+            original_date="2027-07-02",
+            new_date="2027-07-09",
             new_slot="12:00",
         ))
         await asyncio.sleep(0.3)
 
         updated = [e for e in emitted if isinstance(e, ScheduleUpdated)]
         assert len(updated) == 1
-        assert updated[0].old_date == "2025-07-04"
-        assert updated[0].new_date == "2025-07-11"
+        assert updated[0].old_date == "2027-07-02"
+        assert updated[0].new_date == "2027-07-09"
         assert updated[0].new_slot == "12:00"
 
         # Check DB
         walks = await db.execute_fetchall("SELECT * FROM walks WHERE status='scheduled'")
         assert len(walks) == 1
-        assert walks[0]["date"] == "2025-07-11"
+        assert walks[0]["date"] == "2027-07-09"
         assert walks[0]["slot"] == "12:00"
 
         await agent.stop()
@@ -582,7 +596,7 @@ class TestSchedulingEdgeCases:
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="NonexistentDog",
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -619,11 +633,11 @@ class TestSchedulingEdgeCases:
         await agent.start()
         emitted = _track(router)
 
-        # 2025-07-05 is Saturday
+        # 2027-07-03 is Saturday
         await router.publish(BookingIntent(
             client_email="lisa.mueller@example.com",
             dog_name="Bello",
-            walk_date="2025-07-05",
+            walk_date="2027-07-03",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -633,8 +647,8 @@ class TestSchedulingEdgeCases:
         # Should suggest next business days (Mon, Tue, Wed)
         suggested_dates = [a["date"] for a in conflicts[0].alternatives]
         assert len(suggested_dates) == 3
-        # First suggestion should be Monday 2025-07-07
-        assert "2025-07-07" in suggested_dates
+        # First suggestion should be Monday 2027-07-05
+        assert "2027-07-05" in suggested_dates
 
         await agent.stop()
 
@@ -665,23 +679,23 @@ class TestSchedulingHelpers:
     def test_is_business_day_weekday(self, settings):
         agent = SchedulingAgent.__new__(SchedulingAgent)
         agent._settings = settings
-        assert agent._is_business_day("2025-07-04") is True  # Friday
+        assert agent._is_business_day("2027-07-02") is True  # Friday
 
     def test_is_business_day_weekend(self, settings):
         agent = SchedulingAgent.__new__(SchedulingAgent)
         agent._settings = settings
-        assert agent._is_business_day("2025-07-05") is False  # Saturday
+        assert agent._is_business_day("2027-07-03") is False  # Saturday
 
     def test_suggest_next_business_days(self, settings):
         agent = SchedulingAgent.__new__(SchedulingAgent)
         agent._settings = settings
-        suggestions = agent._suggest_next_business_days("2025-07-05", 3)
+        suggestions = agent._suggest_next_business_days("2027-07-03", 3)
         # Sat → next business days: Mon 7th, Tue 8th, Wed 9th
         assert len(suggestions) == 3
-        assert suggestions[0]["date"] == "2025-07-07"
+        assert suggestions[0]["date"] == "2027-07-05"
 
     def test_parse_walk_datetime(self):
-        dt = SchedulingAgent._parse_walk_datetime("2025-07-04", "11:30")
+        dt = SchedulingAgent._parse_walk_datetime("2027-07-02", "11:30")
         assert dt is not None
         assert dt.hour == 11
         assert dt.minute == 30
@@ -735,7 +749,7 @@ class TestHeatGroupLogic:
             client_email="david.peters@example.com",
             client_name="David Peters",
             dog_name="Bella",  # in_heat=1 in seed data
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         )
         await router.publish(booking)
@@ -766,7 +780,7 @@ class TestHeatGroupLogic:
             client_email="julia.richter@example.com",
             client_name="Julia Richter",
             dog_name="Cooper",  # castrated='intact' in seed data
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         )
         await router.publish(booking)
@@ -790,7 +804,7 @@ class TestHeatGroupLogic:
             client_email="david.peters@example.com",
             client_name="David Peters",
             dog_name="Bella",  # in_heat=1
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -800,7 +814,7 @@ class TestHeatGroupLogic:
             client_email="julia.richter@example.com",
             client_name="Julia Richter",
             dog_name="Cooper",  # intact male
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -819,7 +833,7 @@ class TestHeatGroupLogic:
         walks = await db.execute_fetchall(
             "SELECT w.group_id, d.name, d.sex, d.castrated, d.in_heat "
             "FROM walks w JOIN dogs d ON w.dog_id = d.id "
-            "WHERE w.status='scheduled' AND w.date='2025-07-04' AND w.slot='11:30'"
+            "WHERE w.status='scheduled' AND w.date='2027-07-02' AND w.slot='11:30'"
         )
         groups = {}
         for w in walks:
@@ -840,7 +854,7 @@ class TestHeatGroupLogic:
             client_email="david.peters@example.com",
             client_name="David Peters",
             dog_name="Bella",  # in_heat=1
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -850,7 +864,7 @@ class TestHeatGroupLogic:
             client_email="lisa.mueller@example.com",
             client_name="Lisa Müller",
             dog_name="Bello",  # neutered male
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -880,7 +894,7 @@ class TestHeatGroupLogic:
             client_email="julia.richter@example.com",
             client_name="Julia Richter",
             dog_name="Cooper",  # intact male
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
@@ -890,7 +904,7 @@ class TestHeatGroupLogic:
             client_email="tom.schmidt@example.com",
             client_name="Tom Schmidt",
             dog_name="Luna",  # spayed female
-            walk_date="2025-07-04",
+            walk_date="2027-07-02",
             walk_slot="11:30",
         ))
         await asyncio.sleep(0.3)
