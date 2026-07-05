@@ -154,6 +154,22 @@ class SchedulingAgent(BaseAgent):
             if existing["status"] == "cancelled":
                 # Reactivate cancelled walk
                 await self._reactivate_walk(existing["id"], walk_slot)
+                logger.info(
+                    "SchedulingAgent: reactivated cancelled walk %s for %s on %s",
+                    existing["id"], dog["name"], walk_date,
+                )
+                await self.emit(ScheduleConfirmed(
+                    booking_id=existing["id"],
+                    client_email=event.client_email,
+                    client_name=event.client_name or "",
+                    dog_name=dog["name"],
+                    walker_id=existing["walker_id"],
+                    walker_name="",  # already assigned
+                    walk_date=walk_date,
+                    walk_slot=walk_slot,
+                    group_id=existing.get("group_id", ""),
+                ))
+                return
             else:
                 await self.emit(ScheduleConflict(
                     conflict_details=f"{dog['name']} already has a walk on {walk_date}",
