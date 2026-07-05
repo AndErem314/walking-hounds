@@ -10,13 +10,9 @@ groups, minimal stress — so she can focus on the dogs, not the admin.
 
 ## Architecture
 
-```
-Email → IntakeAgent → OnboardingAgent → Human Approval → SchedulingAgent
-                                       ↓
-                          CommunicationAgent → InvoicingAgent
-                               ↑                    ↑
-                          ReminderAgent        LoggerAgent → Dashboard (human)
-```
+![Walking Hounds Agent Workflow](docs/workflow-diagram.png)
+
+*All 7 agents and their communication paths. Purple lines = events logged by LoggerAgent.*
 
 ### Event-Driven Core
 
