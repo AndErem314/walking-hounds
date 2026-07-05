@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     invoice_payment_address: str = "test-payment@walking-hounds.local"
 
     # ── Schedule ────────────────────────────────────────────
+    walk_duration_min: int = 45    # Duration of each walk
+    walk_break_min: int = 15       # Break between walks for the same walker
     walk_slots: str = "11:30,12:00,12:30"
     max_dogs_per_group: int = 4
     max_groups_per_day: int = 3

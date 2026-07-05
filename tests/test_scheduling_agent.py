@@ -230,8 +230,67 @@ class TestWalkerAssignment:
 
         await agent.stop()
 
+    async def test_walker_not_double_booked_back_to_back(self, setup_system, settings):
+        """A walker can't take consecutive slots — 45 min walk + 15 min break = 60 min.
 
-# ── Puppy Group Tests ──────────────────────────────────────
+        Slots [11:30, 12:00, 12:30]. Walker at 11:30 can't take 12:00 (still walking),
+        but can take 12:30 (break just ended).
+        """
+        router, db = setup_system
+        agent = SchedulingAgent(router, settings)
+        await agent.start()
+        emitted = _track(router)
+
+        # Book first dog at 11:30
+        await router.publish(BookingIntent(
+            client_email="lisa.mueller@example.com",
+            dog_name="Bello",
+            walk_date="2027-07-02",
+            walk_slot="11:30",
+        ))
+        await asyncio.sleep(0.3)
+
+        # Book second dog at 12:00 — must be a DIFFERENT walker
+        await router.publish(BookingIntent(
+            client_email="tom.schmidt@example.com",
+            dog_name="Luna",
+            walk_date="2027-07-02",
+            walk_slot="12:00",
+        ))
+        await asyncio.sleep(0.3)
+
+        # Book third dog at 12:30 — can be same as 11:30 walker (break done)
+        await router.publish(BookingIntent(
+            client_email="anna.becker@example.com",
+            dog_name="Rex",
+            walk_date="2027-07-02",
+            walk_slot="12:30",
+        ))
+        await asyncio.sleep(0.3)
+
+        confirmed = [e for e in emitted if isinstance(e, ScheduleConfirmed)]
+        assert len(confirmed) == 3
+
+        walker_1130 = confirmed[0].walker_id
+        walker_1200 = confirmed[1].walker_id
+        walker_1230 = confirmed[2].walker_id
+
+        # 11:30 and 12:00 must be different walkers
+        assert walker_1130 != walker_1200, (
+            f"Walker {walker_1130} was booked at both 11:30 and 12:00 — "
+            f"should be different because 45-min walk + 15-min break = 60 min commitment"
+        )
+
+        # 12:00 and 12:30 must be different walkers
+        assert walker_1200 != walker_1230, (
+            f"Walker {walker_1200} was booked at both 12:00 and 12:30 — "
+            f"should be different"
+        )
+
+        # 11:30 and 12:30 CAN be the same walker (two slots apart, break fits)
+        # No assertion needed — this is allowed behavior
+
+        await agent.stop()
 
 class TestPuppyGroups:
     async def test_puppies_grouped_separately_from_adults(self, setup_system, settings):

@@ -204,9 +204,9 @@ class SchedulingAgent(BaseAgent):
         now = _now()
         await self.db.execute(
             """INSERT INTO walks (id, client_id, dog_id, walker_id, group_id, date, slot, duration, status, price_eur, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 60, 'scheduled', ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, ?)""",
             (walk_id, dog["client_id"], dog["id"], walker["id"], group["id"],
-             walk_date, walk_slot, self._settings.walk_price_eur, now),
+             walk_date, walk_slot, self._settings.walk_duration_min, self._settings.walk_price_eur, now),
         )
         await self.db.commit()
 
@@ -353,7 +353,22 @@ class SchedulingAgent(BaseAgent):
 
     async def _find_available_walker(self, walk_date: str, walk_slot: str) -> dict | None:
         """Find the walker with the fewest walks on this date who isn't already
-        assigned to another group at the same slot."""
+        assigned to another group at the same slot or the immediately preceding slot.
+
+        Business rule: each walk is 45 min + 15 min break = 60 min total commitment.
+        With slots spaced 30 min apart, a walker booked at 11:30 cannot take 12:00
+        (they're still walking/breaking) but can take 12:30.
+        """
+        # Compute the previous slot, if any, for back-to-back exclusion
+        slots = self._settings.walk_slot_list
+        prev_slot = None
+        try:
+            idx = slots.index(walk_slot)
+            if idx > 0:
+                prev_slot = slots[idx - 1]
+        except ValueError:
+            pass
+
         rows = await self.db.execute_fetchall(
             """SELECT w.id, w.name,
                       (SELECT COUNT(*) FROM walks w2
@@ -362,11 +377,12 @@ class SchedulingAgent(BaseAgent):
                WHERE w.active = 1
                AND w.id NOT IN (
                    SELECT walker_id FROM walks
-                   WHERE date = ? AND slot = ? AND status = 'scheduled'
+                   WHERE date = ? AND status = 'scheduled'
+                   AND slot IN (?, ?)
                )
                ORDER BY walk_count ASC
                LIMIT 1""",
-            (walk_date, walk_date, walk_slot),
+            (walk_date, walk_date, walk_slot, prev_slot or walk_slot),
         )
         return dict(rows[0]) if rows else None
 
