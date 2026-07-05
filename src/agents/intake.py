@@ -264,6 +264,36 @@ class IntakeAgent(BaseAgent):
         severity = parsed.get("severity", "medium")
         raw_message = f"From: {from_email}\nSubject: {subject}\n\n{body}"
 
+        # Post-LLM date correction: the LLM (llama3.1:8b) is unreliable at
+        # date arithmetic. Cross-check the LLM's walk_date against explicit
+        # dates and day-of-week references in the email body + subject.
+        # Priority: explicit numeric dates in text always override the LLM.
+        # Day-of-week references only override if the LLM returned null.
+        full_text = subject + " " + body
+        explicit_date = self._extract_explicit_date_from_text(full_text)
+        if explicit_date:
+            if walk_date and walk_date != explicit_date:
+                logger.info(
+                    "IntakeAgent: LLM gave walk_date=%s but email has explicit date %s — overriding",
+                    walk_date, explicit_date,
+                )
+            walk_date = explicit_date
+        elif not walk_date:
+            # No explicit numeric date found, but LLM also returned null.
+            # Try day-of-week extraction as fallback.
+            dow_date = self._extract_day_of_week_date(full_text)
+            if dow_date:
+                logger.info(
+                    "IntakeAgent: LLM gave no walk_date, extracted %s from day-of-week",
+                    dow_date,
+                )
+                walk_date = dow_date
+
+        # Post-LLM dog_name correction: if LLM missed the dog name, try to
+        # extract it from the subject line (e.g. "Walk with Milo")
+        if not dog_name:
+            dog_name = self._extract_dog_name_from_subject(subject)
+
         # Safety net: if LLM flagged only optional (non-required) fields as missing,
         # force clarity to "clear". The system auto-assigns walk_slot, reason is
         # informational, and severity defaults. Required fields are:
@@ -533,6 +563,157 @@ class IntakeAgent(BaseAgent):
         except Exception as exc:
             logger.error("IntakeAgent: onboarding parse failed: %s", exc)
             return {}
+
+    @staticmethod
+    def _extract_explicit_date_from_text(text: str) -> str | None:
+        """Extract an explicit numeric date from raw email text (subject + body).
+        
+        This is a post-LLM safety net — the LLM (llama3.1:8b) is unreliable
+        at date arithmetic, so we scan the text ourselves for explicit numeric
+        dates that the LLM may have computed wrong.
+        
+        Detects:
+        1. European numeric dates: "07.07", "5.7.2025"
+        2. US slash dates: "7/5", "7/5/2025"
+        3. ISO dates: "2025-07-04"
+        
+        Returns ISO date string (YYYY-MM-DD) or None.
+        """
+        import re
+        from datetime import date
+
+        today = date.today()
+
+        # 1. European numeric date: DD.MM or DD.MM.YYYY
+        euro_match = re.search(r"\b(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?\b", text)
+        if euro_match:
+            day = int(euro_match.group(1))
+            month = int(euro_match.group(2))
+            year_str = euro_match.group(3)
+            if year_str:
+                year = int(year_str)
+                if year < 100:
+                    year += 2000
+            else:
+                year = today.year
+                try:
+                    if date(year, month, day) < today:
+                        year += 1
+                except ValueError:
+                    year = today.year
+            try:
+                return date(year, month, day).isoformat()
+            except ValueError:
+                pass
+
+        # 2. US slash date: MM/DD or MM/DD/YYYY
+        slash_match = re.search(r"\b(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?\b", text)
+        if slash_match:
+            month = int(slash_match.group(1))
+            day = int(slash_match.group(2))
+            year_str = slash_match.group(3)
+            if year_str:
+                year = int(year_str)
+                if year < 100:
+                    year += 2000
+            else:
+                year = today.year
+                try:
+                    if date(year, month, day) < today:
+                        year += 1
+                except ValueError:
+                    year = today.year
+            try:
+                return date(year, month, day).isoformat()
+            except ValueError:
+                pass
+
+        return None
+
+    @staticmethod
+    def _extract_day_of_week_date(text: str) -> str | None:
+        """Extract a date from day-of-week references in text.
+        
+        Detects:
+        1. "this Monday", "next Friday" (with prefix)
+        2. Bare "Tuesday", "Monday" (assumes next occurrence)
+        3. "today", "tomorrow"
+        
+        Returns ISO date string (YYYY-MM-DD) or None.
+        """
+        import re
+        from datetime import date, timedelta
+
+        today = date.today()
+        text_lower = text.lower()
+
+        day_names = {
+            "monday": 0, "tuesday": 1, "wednesday": 2,
+            "thursday": 3, "friday": 4, "saturday": 5, "sunday": 6,
+        }
+
+        # 1. Day-of-week with context: "this Monday", "next Friday"
+        dow_match = re.search(
+            r"(this|next)\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)",
+            text_lower,
+        )
+        if dow_match:
+            prefix, day = dow_match.group(1), dow_match.group(2)
+            if day in day_names:
+                target_weekday = day_names[day]
+                current_weekday = today.weekday()
+                if prefix == "this":
+                    delta = (target_weekday - current_weekday) % 7
+                else:  # "next"
+                    delta = (target_weekday - current_weekday) % 7 + 7
+                resolved = today + timedelta(days=delta)
+                return resolved.isoformat()
+
+        # 2. Bare day of week without prefix
+        bare_dow_match = re.search(
+            r"\b(monday|tuesday|wednesday|thursday|friday)\b", text_lower,
+        )
+        if bare_dow_match:
+            day = bare_dow_match.group(1)
+            if day in day_names:
+                target_weekday = day_names[day]
+                current_weekday = today.weekday()
+                delta = (target_weekday - current_weekday) % 7
+                if delta == 0:
+                    delta = 7  # if today is that day, assume next week
+                resolved = today + timedelta(days=delta)
+                return resolved.isoformat()
+
+        # 3. Relative
+        if "tomorrow" in text_lower:
+            return (today + timedelta(days=1)).isoformat()
+        if "today" in text_lower:
+            return today.isoformat()
+
+        return None
+
+    @staticmethod
+    def _extract_dog_name_from_subject(subject: str) -> str | None:
+        """Extract dog name from email subject line.
+        
+        Common patterns:
+        - "Walk with Milo" → Milo
+        - "cancelation walk with Milo" → Milo
+        - "Booking for Bella" → Bella
+        - "Walk for Bello" → Bello
+        """
+        import re
+        match = re.search(
+            r"(?:walk|booking|cancel(?:l)?ation|schedule|reservation)\s+(?:with|for)\s+(\w+)",
+            subject,
+            re.IGNORECASE,
+        )
+        if match:
+            name = match.group(1).strip()
+            # Filter out common non-name words
+            if name.lower() not in {"my", "the", "a", "dog", "walk", "next", "this"}:
+                return name
+        return None
 
     @staticmethod
     def _resolve_date(date_str: str | None) -> str | None:
