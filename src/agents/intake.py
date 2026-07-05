@@ -434,6 +434,7 @@ class IntakeAgent(BaseAgent):
         elif intent == "cancellation":
             await self.emit(CancellationIntent(
                 **common,
+                dog_name=dog_name,
                 walk_date=walk_date,
                 reason=reason,
             ))
