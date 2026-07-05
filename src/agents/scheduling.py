@@ -457,6 +457,23 @@ class SchedulingAgent(BaseAgent):
         if existing_groups and existing_groups[0]["cnt"] >= self._settings.max_groups_per_day:
             return None  # No room for more groups
 
+        # Business rule: puppies and adults must be in DIFFERENT time slots.
+        # Don't create a new group at this slot if the opposite group type
+        # already has an active group with scheduled walks here.
+        conflicting_type = "standard" if is_puppy else "puppy"
+        slot_conflict = await self.db.execute_fetchall(
+            """SELECT 1 FROM walk_groups g
+               WHERE g.date = ? AND g.slot = ? AND g.group_type = ?
+               AND EXISTS (
+                   SELECT 1 FROM walks w
+                   WHERE w.group_id = g.id AND w.status = 'scheduled'
+               ) LIMIT 1""",
+            (walk_date, walk_slot, conflicting_type),
+        )
+        if slot_conflict:
+            # This slot already has the opposite group type — don't mix
+            return None
+
         # Find a walker who doesn't have a group at this slot
         walker = await self._find_available_walker(walk_date, walk_slot)
         if not walker:

@@ -118,7 +118,12 @@ class TestE2EMultipleBookings:
         assert len(group_ids) == 1  # Same group
 
     async def test_puppy_goes_to_puppy_group(self, e2e_system):
-        """A puppy (4-10 months) should be placed in a puppy group, not mixed with adults."""
+        """A puppy (4-10 months) should be placed in a puppy group, not mixed with adults.
+        
+        Business rule: puppies and adults must be in DIFFERENT time slots.
+        When booked on the same day, the puppy gets the first available slot
+        and the adult gets a different slot.
+        """
         router, db, settings = e2e_system
 
         walk_date = _next_business_day()
@@ -140,24 +145,24 @@ class TestE2EMultipleBookings:
         )
         adult = dict(adult_rows[0])
 
-        # Book both at the same slot
+        # Book both — no explicit slot, let the system assign
         for c in [puppy, adult]:
             await router.publish(BookingIntent(
                 client_email=c["email"],
                 client_name=c["name"],
                 dog_name=c["dog_name"],
                 walk_date=walk_date,
-                walk_slot="12:00",
+                walk_slot=None,  # auto-assign
             ))
             await _drain(0.3)
 
-        # They should be in different groups
+        # Both should be booked (different slots, different groups)
         walks = await db.execute_fetchall(
             """SELECT w.*, d.age_months, g.group_type
                FROM walks w
                JOIN dogs d ON w.dog_id = d.id
                LEFT JOIN walk_groups g ON w.group_id = g.id
-               WHERE w.date = ? AND w.slot = '12:00' AND w.status = 'scheduled'""",
+               WHERE w.date = ? AND w.status = 'scheduled'""",
             (walk_date,),
         )
         assert len(walks) == 2
@@ -172,6 +177,10 @@ class TestE2EMultipleBookings:
         # Different group IDs
         group_ids = {dict(w)["group_id"] for w in walks}
         assert len(group_ids) == 2
+
+        # Different time slots (puppy and adult must not share a slot)
+        slots = {dict(w)["slot"] for w in walks}
+        assert len(slots) == 2, f"Puppy and adult should be in different slots, got {slots}"
 
     async def test_three_dogs_fill_group(self, e2e_system):
         """Three dogs at the same slot should all fit in one group (max 4)."""
