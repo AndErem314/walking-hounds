@@ -260,8 +260,8 @@ class IntakeAgent(BaseAgent):
         dog_name = parsed.get("dog_name")
         walk_date = self._resolve_date(parsed.get("walk_date"))
         walk_slot = parsed.get("walk_slot")
-        reason = parsed.get("reason", "")
-        severity = parsed.get("severity", "medium")
+        reason = parsed.get("reason") or ""
+        severity = parsed.get("severity") or "medium"
         raw_message = f"From: {from_email}\nSubject: {subject}\n\n{body}"
 
         # Post-LLM date correction: the LLM (llama3.1:8b) is unreliable at
