@@ -57,13 +57,20 @@ You receive emails from clients and must classify them into one of these intents
 6. other — Doesn't fit any category
 
 CRITICAL — Extract these fields ONLY if they are concretely present in the email:
-- client_name: The sender's name (first + last)
+- client_name: The name from the email body/signature (e.g. "Sophie Lange" at the end
+  of the email). Do NOT use the name from the From: header — that is the email account
+  owner, not necessarily the client. Extract ONLY the name signed in the body.
 - dog_name: The dog's name (must be explicitly mentioned, e.g. "Bello", not "my dog")
 - walk_date: A SPECIFIC date. Accept formats:
     * ISO date: "2025-07-04"
     * Day of week with context: "this Friday", "next Monday"
     * Relative days: "tomorrow", "today" (resolve to YYYY-MM-DD based on current date)
-    If the date is vague ("next week", "sometime soon", "maybe next week") → set to null
+    * Numeric date: "07.07", "7/5", "5.7.2025" — resolve to YYYY-MM-DD based on current date
+    IMPORTANT: If the email contains an explicit numeric date (e.g. "07.07"), ALWAYS use
+    that date. Do NOT override it with a relative interpretation like "next week".
+    "next week Tuesday 07.07" means the date is 07.07 (July 7th), NOT next week + 7 days.
+    If the date is vague (just "next week", "sometime soon", "maybe next week" with no
+    specific day or number) → set to null
 - walk_slot: A specific time slot ("11:30", "12:00", "12:30"). IMPORTANT: if the client
     says "any time", "any available slot", "whenever works", or doesn't mention a specific
     time → set walk_slot to null. This is NOT a missing field — the system will auto-assign
@@ -532,12 +539,14 @@ class IntakeAgent(BaseAgent):
         """Resolve relative dates from LLM output to ISO format.
         
         Handles: 'this Monday', 'next Friday', 'tomorrow', 'today',
-        ISO dates (passed through), and null/vague dates.
+        ISO dates (passed through), European numeric dates (DD.MM or DD.MM.YYYY),
+        and null/vague dates.
         """
         if not date_str:
             return None
 
         from datetime import date, timedelta
+        import re
 
         today = date.today()
         date_lower = date_str.strip().lower()
@@ -548,6 +557,54 @@ class IntakeAgent(BaseAgent):
             return date_str
         except (ValueError, TypeError):
             pass
+
+        # European numeric date: DD.MM, DD.MM.YY, or DD.MM.YYYY
+        # e.g. "07.07" → 2026-07-07, "5.7.2025" → 2025-07-05
+        euro_match = re.match(r"^(\d{1,2})\.(\d{1,2})(?:\.(\d{2,4}))?$", date_str.strip())
+        if euro_match:
+            day = int(euro_match.group(1))
+            month = int(euro_match.group(2))
+            year_str = euro_match.group(3)
+            if year_str:
+                year = int(year_str)
+                if year < 100:
+                    year += 2000
+            else:
+                year = today.year
+                # If the date has already passed this year, assume next year
+                try:
+                    if date(year, month, day) < today:
+                        year += 1
+                except ValueError:
+                    return None
+            try:
+                resolved = date(year, month, day)
+                return resolved.isoformat()
+            except ValueError:
+                return None
+
+        # Slash dates: MM/DD or MM/DD/YYYY (US format)
+        slash_match = re.match(r"^(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?$", date_str.strip())
+        if slash_match:
+            month = int(slash_match.group(1))
+            day = int(slash_match.group(2))
+            year_str = slash_match.group(3)
+            if year_str:
+                year = int(year_str)
+                if year < 100:
+                    year += 2000
+            else:
+                year = today.year
+                try:
+                    if date(year, month, day) < today:
+                        year += 1
+                except ValueError:
+                    return None
+            try:
+                resolved = date(year, month, day)
+                return resolved.isoformat()
+            except ValueError:
+                return None
 
         # Relative days
         if date_lower == "today":
