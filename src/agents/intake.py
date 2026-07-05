@@ -110,6 +110,7 @@ USER_PROMPT_TEMPLATE = """Parse this email for the dog-walking business.
 
 Today's date: {today}
 Current day of week: {dow}
+Email sent: {email_date}
 
 From: {from_email}
 Subject: {subject}
@@ -246,7 +247,8 @@ class IntakeAgent(BaseAgent):
         await self._mark_processed(message_id, email_data.get("date", ""))
 
         # 2. Parse with LLM
-        parsed = await self._parse_email(from_email, subject, body)
+        email_date = email_data.get("date", "")
+        parsed = await self._parse_email(from_email, subject, body, email_date)
 
         if not parsed:
             logger.warning("LLM returned empty parse for email from %s", from_email)
@@ -267,8 +269,10 @@ class IntakeAgent(BaseAgent):
         # Post-LLM date correction: the LLM (llama3.1:8b) is unreliable at
         # date arithmetic. Cross-check the LLM's walk_date against explicit
         # dates and day-of-week references in the email body + subject.
-        # Priority: explicit numeric dates in text always override the LLM.
-        # Day-of-week references only override if the LLM returned null.
+        # Priority:
+        # 1. Explicit numeric dates in text always override the LLM.
+        # 2. Day-of-week references override if LLM returned null OR if the
+        #    LLM's date doesn't match the day of week mentioned in the email.
         full_text = subject + " " + body
         explicit_date = self._extract_explicit_date_from_text(full_text)
         if explicit_date:
@@ -278,16 +282,38 @@ class IntakeAgent(BaseAgent):
                     walk_date, explicit_date,
                 )
             walk_date = explicit_date
-        elif not walk_date:
-            # No explicit numeric date found, but LLM also returned null.
-            # Try day-of-week extraction as fallback.
+        else:
+            # No explicit numeric date — check day-of-week references
             dow_date = self._extract_day_of_week_date(full_text)
             if dow_date:
-                logger.info(
-                    "IntakeAgent: LLM gave no walk_date, extracted %s from day-of-week",
-                    dow_date,
-                )
-                walk_date = dow_date
+                if not walk_date:
+                    # LLM returned null — use our day-of-week computation
+                    logger.info(
+                        "IntakeAgent: LLM gave no walk_date, extracted %s from day-of-week",
+                        dow_date,
+                    )
+                    walk_date = dow_date
+                elif walk_date != dow_date:
+                    # LLM gave a date that differs from our day-of-week
+                    # computation. Only override if the LLM's date falls on
+                    # a different day-of-week than what the email says.
+                    from datetime import date as _date
+                    try:
+                        llm_dow = _date.fromisoformat(walk_date).weekday()
+                        our_dow = _date.fromisoformat(dow_date).weekday()
+                        if llm_dow != our_dow:
+                            logger.info(
+                                "IntakeAgent: LLM gave walk_date=%s (wrong day) but email says day-of-week → %s — overriding",
+                                walk_date, dow_date,
+                            )
+                            walk_date = dow_date
+                    except (ValueError, TypeError):
+                        # Can't parse LLM date — trust our day-of-week extraction
+                        logger.info(
+                            "IntakeAgent: LLM gave unparseable walk_date=%s, using day-of-week → %s",
+                            walk_date, dow_date,
+                        )
+                        walk_date = dow_date
 
         # Post-LLM dog_name correction: if LLM missed the dog name, try to
         # extract it from the subject line (e.g. "Walk with Milo")
@@ -486,12 +512,13 @@ class IntakeAgent(BaseAgent):
             f"To process your {intent} request, could you please clarify: {missing_text}?"
         )
 
-    async def _parse_email(self, from_email: str, subject: str, body: str) -> dict:
+    async def _parse_email(self, from_email: str, subject: str, body: str, email_date: str = "") -> dict:
         """Send email to Ollama and parse the structured JSON response."""
         now = datetime.now(timezone.utc)
         prompt = USER_PROMPT_TEMPLATE.format(
             today=now.date().isoformat(),
             dow=now.strftime("%A"),
+            email_date=email_date or "unknown",
             from_email=from_email,
             subject=subject,
             body=body[:2000],  # truncate to avoid token overflow
